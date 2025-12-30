@@ -2,107 +2,113 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kasir Fast Pro - Enterprise Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
         .print-only { display: none; }
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             body { background: white; }
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         
         .theme-spv .nav-btn-active { background-color: #4f46e5 !important; color: white !important; }
         .theme-kasir .nav-btn-active { background-color: #2563eb !important; color: white !important; }
+
+        @media (min-width: 1024px) and (orientation: landscape) {
+            .pos-grid { height: calc(100vh - 160px); }
+            .sticky-cart { height: calc(100vh - 120px); position: sticky; top: 100px; }
+        }
+
+        .payment-opt-active { border-color: #2563eb !important; background-color: #eff6ff !important; color: #2563eb !important; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen transition-colors duration-500">
 
-    <!-- Layar Login -->
-    <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md mx-4">
+    <!-- Login Screen -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md">
             <div class="text-center mb-8">
-                <div class="bg-blue-100 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 rotate-3">
-                    <i data-lucide="zap" class="text-blue-600 w-10 h-10 fill-blue-600"></i>
+                <div class="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 rotate-3">
+                    <i data-lucide="zap" class="text-blue-600 w-8 h-8 fill-blue-600"></i>
                 </div>
-                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">KasirFast Pro</h1>
-                <p class="text-slate-500 text-sm mt-2">Masukkan Token Otoritas Anda</p>
+                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">KasirFast Pro</h1>
+                <p class="text-slate-500 text-xs mt-2 font-medium uppercase tracking-widest">Login Outlet & SPV</p>
             </div>
             <div class="space-y-4">
                 <div class="relative">
-                    <i data-lucide="key" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-                    <input type="password" id="token-input" placeholder="Contoh: KARYAWAN... / SPV..." 
-                        class="w-full pl-12 pr-4 py-4 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold tracking-widest uppercase">
+                    <i data-lucide="key" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="password" id="token-input" placeholder="Masukkan Token" 
+                        class="w-full pl-11 pr-4 py-4 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold tracking-widest uppercase text-center">
                 </div>
                 <button id="login-btn" onclick="handleLogin()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2">
-                    Buka Dashboard
+                    Masuk Dashboard
                 </button>
             </div>
-            <div id="login-error" class="mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-xl hidden border border-red-100 font-medium"></div>
+            <div id="login-error" class="mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-xl hidden border border-red-100 font-bold text-center"></div>
         </div>
     </div>
 
-    <!-- Dashboard Utama -->
+    <!-- Main App -->
     <div id="main-app" class="hidden">
         <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 no-print shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-20 items-center">
+            <div class="max-w-7xl mx-auto px-4 h-16 sm:h-20 flex justify-between items-center">
                 <div class="flex items-center gap-3">
-                    <div id="brand-icon" class="w-10 h-10 rounded-xl flex items-center justify-center">
-                        <i data-lucide="box" class="text-white w-6 h-6"></i>
+                    <div id="brand-icon" class="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600">
+                        <i data-lucide="store" class="text-white w-6 h-6"></i>
                     </div>
                     <div>
-                        <span class="font-black text-xl text-slate-900 block leading-none">KasirFast</span>
-                        <span id="role-text" class="text-[10px] uppercase font-bold tracking-widest text-slate-400"></span>
+                        <span class="font-black text-lg text-slate-900 block leading-none" id="header-outlet-name">KasirFast</span>
+                        <span id="role-text" class="text-[9px] uppercase font-bold tracking-widest text-slate-400"></span>
                     </div>
                 </div>
-                <div class="flex items-center gap-6">
-                    <div class="hidden md:block text-right">
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
                         <span id="user-display" class="block text-sm font-bold text-slate-800"></span>
-                        <span id="status-online" class="text-[10px] text-green-500 font-bold flex items-center gap-1 justify-end">
-                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> ONLINE
+                        <span id="status-online" class="text-[9px] text-green-500 font-black flex items-center gap-1 justify-end">
+                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> ONLINE
                         </span>
                     </div>
-                    <button onclick="logout()" class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all">
-                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    <button onclick="logout()" class="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
         </nav>
 
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 no-print">
-            <div class="flex gap-2 mb-8 overflow-x-auto pb-2 custom-scrollbar" id="nav-tabs"></div>
+        <div class="max-w-7xl mx-auto px-4 py-6 no-print">
+            <div class="flex gap-2 mb-6 overflow-x-auto pb-2 custom-scrollbar no-print" id="nav-tabs"></div>
             <div id="content-area"></div>
         </div>
     </div>
 
-    <!-- Modal Struk -->
+    <!-- Receipt Modal -->
     <div id="receipt-modal" class="fixed inset-0 bg-slate-900/80 hidden items-center justify-center z-50 no-print p-4 backdrop-blur-sm">
-        <div class="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh] animate-fadeIn">
-            <div id="receipt-content" class="text-xs font-mono leading-relaxed"></div>
-            <div class="mt-8 flex flex-col gap-3">
-                <button id="copy-text-btn" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition shadow-lg">
-                    <i data-lucide="copy" class="w-4 h-4"></i> Salin Struktur Struk
+        <div class="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh] animate-fadeIn">
+            <div id="receipt-content" class="text-xs font-mono leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100"></div>
+            <div class="mt-6 flex flex-col gap-2">
+                <button id="copy-text-btn" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition">
+                    <i data-lucide="copy" class="w-4 h-4"></i> Salin Struk
                 </button>
                 <button onclick="window.print()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black transition">
-                    <i data-lucide="printer" class="w-4 h-4"></i> Cetak Langsung
+                    <i data-lucide="printer" class="w-4 h-4"></i> Cetak
                 </button>
-                <button onclick="closeReceipt()" class="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition">Tutup</button>
+                <button onclick="closeReceipt()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-2xl font-bold hover:bg-slate-200 transition">Tutup</button>
             </div>
         </div>
     </div>
-
-    <div id="print-receipt" class="print-only font-mono text-[10pt] p-4 text-center"></div>
 
     <script>
         const firebaseConfig = {
@@ -122,6 +128,16 @@
 
         let currentUser = null; 
         let currentCart = [];
+        let selectedPayment = 'Tunai';
+
+        const OUTLETS = {
+            'OUTLET-KARET': 'Outlet Karet',
+            'OUTLET-TA1': 'Tanah Abang 1',
+            'OUTLET-TA2': 'Tanah Abang 2',
+            'OUTLET-DURI1': 'Duri 1',
+            'OUTLET-DURI2': 'Duri 2',
+            'OUTLET-GROGOL': 'Grogol'
+        };
 
         const MENU = {
             roti: [
@@ -144,44 +160,30 @@
 
         async function handleLogin() {
             const btn = document.getElementById('login-btn');
-            const errorEl = document.getElementById('login-error');
             const token = document.getElementById('token-input').value.toUpperCase().trim();
-            
-            errorEl.classList.add('hidden');
-            if (!token) { showError("Harap masukkan token otoritas."); return; }
-            
+            if (!token) return;
+
             btn.disabled = true;
-            btn.innerHTML = 'Memproses...';
-
-            if (token.startsWith('KARYAWAN')) {
-                currentUser = { role: 'kasir', name: 'Kasir Utama', token };
+            if (OUTLETS[token]) {
+                currentUser = { role: 'kasir', name: 'Kasir', outlet: OUTLETS[token], token };
                 document.body.className = "bg-slate-50 theme-kasir";
-                document.getElementById('brand-icon').className = "w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600";
             } else if (token.startsWith('SPV')) {
-                currentUser = { role: 'spv', name: 'SPV Operational', token };
+                currentUser = { role: 'spv', name: 'SPV Operational', outlet: 'All Outlets', token };
                 document.body.className = "bg-slate-50 theme-spv";
-                document.getElementById('brand-icon').className = "w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-600";
-            } else { 
-                showError("Token Tidak Valid!");
-                btn.disabled = false; btn.innerHTML = 'Buka Dashboard'; return; 
+            } else {
+                document.getElementById('login-error').innerText = "Token Tidak Valid";
+                document.getElementById('login-error').classList.remove('hidden');
+                btn.disabled = false;
+                return;
             }
 
-            try {
-                await auth.signInAnonymously();
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('main-app').classList.remove('hidden');
-                document.getElementById('user-display').innerText = currentUser.name;
-                document.getElementById('role-text').innerText = currentUser.role === 'spv' ? 'Supervisor Mode' : 'Cashier Mode';
-                initNavigation();
-            } catch (err) { 
-                showError("Gagal terhubung.");
-                btn.disabled = false; btn.innerHTML = 'Buka Dashboard'; 
-            }
-        }
-
-        function showError(msg) {
-            const errorEl = document.getElementById('login-error');
-            errorEl.innerText = msg; errorEl.classList.remove('hidden');
+            await auth.signInAnonymously();
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            document.getElementById('user-display').innerText = currentUser.name;
+            document.getElementById('header-outlet-name').innerText = currentUser.outlet;
+            document.getElementById('role-text').innerText = currentUser.role === 'spv' ? 'Supervisor Mode' : 'Cashier Mode';
+            initNavigation();
         }
 
         function logout() { location.reload(); }
@@ -190,298 +192,60 @@
             const nav = document.getElementById('nav-tabs');
             let tabs = (currentUser.role === 'kasir') ? [
                 { id: 'pos', label: 'Kasir', icon: 'calculator' },
-                { id: 'saos', label: 'Laporan Saos', icon: 'droplet' },
+                { id: 'saos', label: 'Input Saos', icon: 'droplet' },
                 { id: 'riwayat', label: 'Riwayat', icon: 'history' }
             ] : [
-                { id: 'spv_dashboard', label: 'Monitoring Penjualan', icon: 'bar-chart-3' },
-                { id: 'spv_saos', label: 'Data Stok Saos', icon: 'package' },
-                { id: 'spv_traffic', label: 'Trafik Jam', icon: 'clock' },
+                { id: 'spv_dashboard', label: 'Monitoring', icon: 'bar-chart-3' },
+                { id: 'spv_saos', label: 'Data Saos', icon: 'package' },
+                { id: 'spv_traffic', label: 'Trafik', icon: 'clock' },
                 { id: 'riwayat', label: 'Audit Transaksi', icon: 'shield-check' }
             ];
-            nav.innerHTML = tabs.map(t => `
-                <button onclick="switchView('${t.id}')" id="nav-${t.id}" class="flex items-center gap-2 px-6 py-3 rounded-2xl nav-btn bg-white text-slate-500 border border-slate-100 font-bold transition-all shadow-sm hover:shadow-md">
-                    <i data-lucide="${t.icon}" class="w-4 h-4"></i> ${t.label}
-                </button>
-            `).join('');
+            nav.innerHTML = tabs.map(t => `<button onclick="switchView('${t.id}')" id="nav-${t.id}" class="flex items-center gap-2 px-6 py-3 rounded-2xl nav-btn bg-white text-slate-500 border border-slate-100 font-bold transition-all shadow-sm hover:shadow-md whitespace-nowrap"><i data-lucide="${t.icon}" class="w-4 h-4"></i> ${t.label}</button>`).join('');
             switchView(tabs[0].id);
         }
 
         function switchView(viewId) {
             const container = document.getElementById('content-area');
-            if (!container) return;
-            container.innerHTML = '<div class="flex justify-center p-20">Loading...</div>';
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('nav-btn-active'));
-            const activeBtn = document.getElementById(`nav-${viewId}`);
-            if (activeBtn) activeBtn.classList.add('nav-btn-active');
+            document.getElementById(`nav-${viewId}`)?.classList.add('nav-btn-active');
             
-            setTimeout(() => {
-                if(viewId === 'pos') renderPOS(container);
-                else if(viewId === 'saos') renderSaos(container);
-                else if(viewId === 'riwayat') renderRiwayat(container);
-                else if(viewId === 'spv_dashboard') renderSPVDashboard(container);
-                else if(viewId === 'spv_saos') renderSPVSaos(container);
-                else if(viewId === 'spv_traffic') renderSPVTraffic(container);
-                initIcons();
-            }, 50);
-        }
-
-        function renderPOS(container) {
-            container.innerHTML = `
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
-                    <div class="lg:col-span-2 space-y-8">
-                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            ${[...MENU.roti, ...MENU.minuman].map(it => `
-                                <button onclick="addToCart('${it.id}')" class="bg-white p-5 rounded-3xl border border-slate-200 hover:border-blue-500 shadow-sm text-left group transition-all active:scale-95">
-                                    <div class="text-[10px] text-slate-400 font-black mb-1 uppercase">${it.id.startsWith('r') ? 'Roti' : 'Minuman'}</div>
-                                    <div class="text-sm font-bold text-slate-800 mb-3">${it.name}</div>
-                                    <div class="flex justify-between items-center">
-                                        <div class="text-blue-600 font-black">Rp ${it.price.toLocaleString()}</div>
-                                        <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <i data-lucide="plus" class="w-4 h-4"></i>
-                                        </div>
-                                    </div>
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-[2rem] border border-slate-200 shadow-xl p-8 flex flex-col h-[calc(100vh-180px)]">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="font-black text-slate-900">Daftar Orderan</h3>
-                            <span id="cart-count" class="bg-blue-100 text-blue-600 text-xs font-black px-3 py-1 rounded-full">0 ITEM</span>
-                        </div>
-                        <div id="cart-list" class="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-2">
-                             <div class="text-center py-10 text-slate-400 italic text-sm">Belum ada item terpilih</div>
-                        </div>
-                        <div class="mt-6 space-y-4 pt-6 border-t border-slate-100">
-                            <div class="flex justify-between font-black text-lg"><span>Total Bayar</span><span id="total-price" class="text-blue-600">Rp 0</span></div>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
-                                <input type="number" id="cash-input" oninput="calcChange()" placeholder="Jumlah Tunai" class="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border-none font-black text-xl text-slate-800 placeholder:text-slate-300">
-                            </div>
-                            <div class="flex justify-between text-green-600 font-bold bg-green-50 p-3 rounded-xl border border-green-100">
-                                <span>Kembalian</span>
-                                <span id="change-display">Rp 0</span>
-                            </div>
-                            <button id="pay-btn" onclick="processCheckout()" disabled class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black disabled:bg-slate-200 shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 transform active:scale-[0.98]">SELESAIKAN & CETAK</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            updateCartUI();
+            if(viewId === 'pos') renderPOS(container);
+            else if(viewId === 'saos') renderSaos(container);
+            else if(viewId === 'riwayat') renderRiwayat(container);
+            else if(viewId === 'spv_dashboard') renderSPVDashboard(container);
+            else if(viewId === 'spv_saos') renderSPVSaos(container);
+            else if(viewId === 'spv_traffic') renderSPVTraffic(container);
             initIcons();
         }
 
-        async function renderSPVDashboard(container) {
-            container.innerHTML = `
-                <div class="space-y-8 animate-fadeIn">
-                    <div class="flex flex-wrap gap-4 items-end bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <div class="flex-1 min-w-[200px]">
-                            <label class="text-[10px] font-black uppercase text-slate-400 block mb-2">Lihat Tanggal Spesifik</label>
-                            <input type="date" id="filter-date" onchange="loadSPVAnalytics()" class="w-full p-3 bg-slate-50 rounded-xl border-none font-bold">
-                        </div>
-                        <div class="bg-indigo-50 px-6 py-3 rounded-2xl border border-indigo-100 flex-1 min-w-[200px]">
-                            <div class="text-[10px] font-bold text-indigo-400 uppercase">Total Bulan Ini</div>
-                            <div id="total-month" class="text-xl font-black text-indigo-700">Rp 0</div>
-                        </div>
-                        <div class="bg-indigo-600 px-6 py-3 rounded-2xl flex-1 min-w-[200px] text-white">
-                            <div class="text-[10px] font-bold opacity-70 uppercase">Total Tahun Ini</div>
-                            <div id="total-year" class="text-xl font-black">Rp 0</div>
-                        </div>
-                    </div>
-                    <div id="daily-stat" class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-xl">
-                        <div class="text-xs font-bold text-slate-400 uppercase mb-1">Penjualan Tanggal Terpilih</div>
-                        <div id="total-selected" class="text-4xl font-black text-slate-900">Rp 0</div>
-                    </div>
-                </div>
-            `;
-            const today = new Date().toISOString().split('T')[0];
-            const filterInput = document.getElementById('filter-date');
-            if (filterInput) {
-                filterInput.value = today;
-                await loadSPVAnalytics();
-            }
-        }
-
-        async function loadSPVAnalytics() {
-            const filterInput = document.getElementById('filter-date');
-            if (!filterInput) return;
-            
-            const selectedDate = filterInput.value;
-            const selDateObj = new Date(selectedDate);
-            
-            try {
-                const snap = await getPublicCol('transactions').get();
-                const data = snap.docs.map(d => d.data());
-                
-                let selectedTotal = 0;
-                let monthTotal = 0;
-                let yearTotal = 0;
-
-                data.forEach(t => {
-                    const d = t.timestamp?.toDate ? t.timestamp.toDate() : new Date();
-                    const dStr = d.toISOString().split('T')[0];
-                    
-                    if(dStr === selectedDate) selectedTotal += t.total;
-                    if(d.getMonth() === selDateObj.getMonth() && d.getFullYear() === selDateObj.getFullYear()) monthTotal += t.total;
-                    if(d.getFullYear() === selDateObj.getFullYear()) yearTotal += t.total;
-                });
-
-                const selEl = document.getElementById('total-selected');
-                const monEl = document.getElementById('total-month');
-                const yrEl = document.getElementById('total-year');
-                
-                if (selEl) selEl.innerText = `Rp ${selectedTotal.toLocaleString()}`;
-                if (monEl) monEl.innerText = `Rp ${monthTotal.toLocaleString()}`;
-                if (yrEl) yrEl.innerText = `Rp ${yearTotal.toLocaleString()}`;
-            } catch(e) { console.error(e); }
-        }
-
-        async function renderSPVSaos(container) {
-            container.innerHTML = `
-                <div class="space-y-8 animate-fadeIn">
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="saos-summary-cards"></div>
-                    <div class="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
-                        <div class="p-6 border-b bg-slate-50 flex justify-between items-center">
-                            <h3 class="font-black text-slate-800">Detail Laporan Saos</h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead class="bg-white border-b">
-                                    <tr>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">No</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Tanggal</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Jam</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Staf</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Varian</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-right">Qty</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="spv-saos-history-table" class="divide-y font-medium text-sm"></tbody>
-                                <tfoot class="bg-indigo-50 border-t border-indigo-100">
-                                    <tr class="font-black text-indigo-700">
-                                        <td colspan="5" class="px-6 py-4 text-right uppercase text-[10px]">Total Keseluruhan Penggunaan Saos</td>
-                                        <td id="grand-total-saos" class="px-6 py-4 text-right text-lg">0</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-            try {
-                const snap = await getPublicCol('saos_usage').get();
-                const data = snap.docs.map(d => d.data()).sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
-                
-                const totals = {};
-                let grandTotal = 0;
-                SAOS_VARIANTS.forEach(v => totals[v] = 0);
-                
-                const tableHtml = data.map((d, idx) => {
-                    const dt = d.timestamp?.toDate ? d.timestamp.toDate() : new Date();
-                    if(totals[d.name] !== undefined) totals[d.name] += d.qty;
-                    grandTotal += d.qty;
-                    return `
-                        <tr>
-                            <td class="px-6 py-4 text-slate-400">${idx + 1}</td>
-                            <td class="px-6 py-4 text-slate-600">${dt.toLocaleDateString('id-ID')}</td>
-                            <td class="px-6 py-4 text-indigo-600 font-bold">${dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
-                            <td class="px-6 py-4">${d.staff}</td>
-                            <td class="px-6 py-4"><span class="bg-slate-100 text-slate-700 px-3 py-1 rounded-lg text-xs font-bold">${d.name}</span></td>
-                            <td class="px-6 py-4 text-right font-black text-indigo-600">${d.qty}</td>
-                        </tr>
-                    `;
-                }).join('');
-
-                const tableBody = document.getElementById('spv-saos-history-table');
-                const grandTotalEl = document.getElementById('grand-total-saos');
-                const summaryCardsEl = document.getElementById('saos-summary-cards');
-
-                if (tableBody) tableBody.innerHTML = tableHtml;
-                if (grandTotalEl) grandTotalEl.innerText = grandTotal;
-                if (summaryCardsEl) {
-                    summaryCardsEl.innerHTML = Object.entries(totals).map(([name, val]) => `
-                        <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                            <div class="text-[10px] font-black text-slate-400 uppercase mb-1">${name}</div>
-                            <div class="text-2xl font-black text-indigo-600">${val} <span class="text-xs text-slate-400">Pcs</span></div>
-                        </div>
-                    `).join('');
-                }
-            } catch(e) { console.error(e); }
-        }
-
-        async function renderSPVTraffic(container) {
-            container.innerHTML = `<h3 class="font-black mb-8 text-2xl text-slate-900">Rincian Penjualan Per Jam</h3><div id="spv-traffic-list" class="space-y-6"></div>`;
-            try {
-                const snap = await getPublicCol('transactions').get();
-                const trans = snap.docs.map(d => d.data());
-                const hours = {};
-                trans.forEach(t => {
-                    const h = t.hour || 0;
-                    if(!hours[h]) hours[h] = { total: 0, items: {} };
-                    hours[h].total += t.total;
-                    t.items?.forEach(it => { hours[h].items[it.name] = (hours[h].items[it.name] || 0) + it.qty; });
-                });
-                const trafficListEl = document.getElementById('spv-traffic-list');
-                if (trafficListEl) {
-                    trafficListEl.innerHTML = Object.entries(hours).sort((a,b) => b[0] - a[0]).map(([h, st]) => `
-                        <div class="bg-white p-6 rounded-3xl border border-slate-200">
-                            <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-50">
-                                <span class="font-black text-indigo-600">JAM ${h}:00</span>
-                                <span class="font-black">Rp ${st.total.toLocaleString()}</span>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                ${Object.entries(st.items).map(([name, qty]) => `<span class="bg-slate-50 text-[10px] px-3 py-1.5 rounded-lg border"><b>${name}</b> x${qty}</span>`).join('')}
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            } catch(e) { console.error(e); }
-        }
-
+        // --- POS & CART LOGIC ---
         function addToCart(id) {
-            const it = [...MENU.roti, ...MENU.minuman].find(p => p.id === id);
-            const exists = currentCart.find(c => c.id === id);
-            if (exists) exists.qty++; else currentCart.push({ ...it, qty: 1 });
+            const allItems = [...MENU.roti, ...MENU.minuman];
+            const item = allItems.find(i => i.id === id);
+            const existing = currentCart.find(i => i.id === id);
+            if(existing) existing.qty++;
+            else currentCart.push({...item, qty: 1});
             updateCartUI();
         }
 
         function updateCartUI() {
             const list = document.getElementById('cart-list');
             if(!list) return;
-
-            if (currentCart.length === 0) {
-                list.innerHTML = `<div class="text-center py-10 text-slate-400 italic text-sm">Belum ada item terpilih</div>`;
-            } else {
-                list.innerHTML = currentCart.map((it, idx) => `
-                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center animate-fadeIn">
-                        <div class="flex-1">
-                            <div class="font-black text-slate-800 text-sm">${it.name}</div>
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">@ Rp ${it.price.toLocaleString()}</div>
-                        </div>
-                        <div class="flex items-center gap-3 bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm">
-                            <button onclick="changeQty(${idx}, -1)" class="w-7 h-7 bg-slate-100 rounded-lg text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors">
-                                <i data-lucide="minus" class="w-3.5 h-3.5"></i>
-                            </button>
-                            <span class="text-sm font-black text-slate-900 w-4 text-center">${it.qty}</span>
-                            <button onclick="changeQty(${idx}, 1)" class="w-7 h-7 bg-slate-100 rounded-lg text-slate-600 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </div>
+            list.innerHTML = currentCart.map((it, idx) => `
+                <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex justify-between items-center animate-fadeIn">
+                    <div class="flex-1 overflow-hidden">
+                        <div class="font-bold text-slate-800 text-xs truncate">${it.name}</div>
+                        <div class="text-[9px] text-slate-500 font-medium">Rp ${it.price.toLocaleString()} x ${it.qty}</div>
                     </div>
-                `).join('');
-            }
-
+                    <div class="flex items-center gap-1.5 bg-white px-1 py-1 rounded-xl border">
+                        <button onclick="changeQty(${idx}, -1)" class="w-6 h-6 bg-slate-100 rounded text-slate-600 flex items-center justify-center">-</button>
+                        <span class="text-xs font-black min-w-[20px] text-center">${it.qty}</span>
+                        <button onclick="changeQty(${idx}, 1)" class="w-6 h-6 bg-slate-100 rounded text-slate-600 flex items-center justify-center">+</button>
+                    </div>
+                </div>`).join('');
             const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-            const count = currentCart.reduce((a, b) => a + b.qty, 0);
-            
-            const totalEl = document.getElementById('total-price');
-            const countEl = document.getElementById('cart-count');
-            
-            if (totalEl) totalEl.innerText = `Rp ${total.toLocaleString()}`;
-            if (countEl) countEl.innerText = `${count} ITEM`;
-            
+            document.getElementById('total-price').innerText = `Rp ${total.toLocaleString()}`;
             calcChange();
-            initIcons();
         }
 
         function changeQty(idx, delta) {
@@ -490,246 +254,590 @@
             updateCartUI();
         }
 
+        function setPaymentMethod(method) {
+            selectedPayment = method;
+            document.querySelectorAll('.pay-opt').forEach(btn => {
+                btn.classList.toggle('payment-opt-active', btn.dataset.method === method);
+            });
+            if (method !== 'Tunai') {
+                const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
+                document.getElementById('cash-input').value = total;
+            }
+            calcChange();
+        }
+
+        function setQuickCash(amount) {
+            const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
+            if (amount === 'pas') {
+                document.getElementById('cash-input').value = total;
+            } else {
+                document.getElementById('cash-input').value = amount;
+            }
+            calcChange();
+        }
+
         function calcChange() {
             const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-            const cashInput = document.getElementById('cash-input');
-            const cash = parseInt(cashInput?.value || 0);
-            const changeDisplay = document.getElementById('change-display');
-            if (changeDisplay) changeDisplay.innerText = `Rp ${Math.max(0, cash - total).toLocaleString()}`;
-            const payBtn = document.getElementById('pay-btn');
-            if (payBtn) payBtn.disabled = (total === 0 || cash < total);
+            const cash = parseInt(document.getElementById('cash-input')?.value || 0);
+            document.getElementById('change-display').innerText = `Rp ${Math.max(0, cash - total).toLocaleString()}`;
+            document.getElementById('pay-btn').disabled = (total === 0 || cash < total);
         }
 
         async function processCheckout() {
             const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-            const cashInput = document.getElementById('cash-input');
-            const cash = parseInt(cashInput.value);
+            const cash = parseInt(document.getElementById('cash-input').value);
             const data = {
                 items: currentCart.map(it => ({...it})),
                 total, cash, change: cash - total,
+                method: selectedPayment,
                 timestamp: firebase.firestore.Timestamp.now(),
                 staff: currentUser.name,
+                outlet: currentUser.outlet,
                 hour: new Date().getHours()
             };
-            try {
-                await getPublicCol('transactions').add(data);
-                showReceipt(data);
-                currentCart = [];
-                if (cashInput) cashInput.value = '';
-                updateCartUI();
-            } catch(e) { alert(e.message); }
-        }
-
-        function generateReceiptText(data) {
-            const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
-            let text = "   KASIR FAST PRO\n";
-            text += "--------------------------\n";
-            text += `Tgl : ${date.toLocaleString()}\n`;
-            text += `Staf: ${data.staff}\n`;
-            text += "--------------------------\n";
-            data.items.forEach(it => {
-                text += `${it.name.padEnd(18)} x${it.qty}\n`;
-                text += `             Rp ${(it.price * it.qty).toLocaleString()}\n`;
-            });
-            text += "--------------------------\n";
-            text += `TOTAL    : Rp ${data.total.toLocaleString()}\n`;
-            text += `TUNAI    : Rp ${data.cash.toLocaleString()}\n`;
-            text += `KEMBALI  : Rp ${data.change.toLocaleString()}\n`;
-            text += "--------------------------\n";
-            text += "      TERIMA KASIH\n";
-            return text;
+            await getPublicCol('transactions').add(data);
+            showReceipt(data);
+            currentCart = [];
+            document.getElementById('cash-input').value = '';
+            selectedPayment = 'Tunai';
+            updateCartUI();
         }
 
         function showReceipt(data) {
-            const text = generateReceiptText(data);
-            const receiptContentEl = document.getElementById('receipt-content');
-            if (receiptContentEl) receiptContentEl.innerHTML = `<pre class="whitespace-pre-wrap">${text}</pre>`;
-            const copyBtn = document.getElementById('copy-text-btn');
-            if (copyBtn) {
-                copyBtn.onclick = () => {
-                    const el = document.createElement('textarea');
-                    el.value = text; document.body.appendChild(el); el.select();
-                    document.execCommand('copy'); document.body.removeChild(el);
-                    const orig = copyBtn.innerHTML; copyBtn.innerHTML = "Tersalin!";
-                    setTimeout(() => copyBtn.innerHTML = orig, 2000);
-                };
-            }
-            const receiptModal = document.getElementById('receipt-modal');
-            if (receiptModal) receiptModal.classList.replace('hidden', 'flex');
+            const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
+            let text = `   ${data.outlet.toUpperCase()}\n--------------------------\n`;
+            text += `Tgl : ${date.toLocaleString()}\nStaf: ${data.staff}\nTipe: ${data.method}\n--------------------------\n`;
+            data.items.forEach(it => text += `${it.name.padEnd(18)} x${it.qty}\n             Rp ${(it.price * it.qty).toLocaleString()}\n`);
+            text += `--------------------------\nTOTAL    : Rp ${data.total.toLocaleString()}\n`;
+            text += `BAYAR    : Rp ${data.cash.toLocaleString()}\n`;
+            text += `KEMBALI  : Rp ${data.change.toLocaleString()}\n--------------------------\n`;
+            document.getElementById('receipt-content').innerHTML = `<pre class="whitespace-pre-wrap">${text}</pre>`;
+            document.getElementById('receipt-modal').classList.replace('hidden', 'flex');
         }
 
-        function closeReceipt() { 
-            const receiptModal = document.getElementById('receipt-modal');
-            if (receiptModal) receiptModal.classList.replace('flex', 'hidden'); 
-        }
+        function closeReceipt() { document.getElementById('receipt-modal').classList.replace('flex', 'hidden'); }
 
-        async function deleteTransaction(id) {
-            const confirmDel = confirm("PERINGATAN: Apakah Anda yakin ingin MENGHAPUS PERMANEN transaksi ini? Data ini tidak bisa dikembalikan.");
-            if(!confirmDel) return;
-            try {
-                await getPublicCol('transactions').doc(id).delete();
-                renderRiwayat(document.getElementById('content-area'));
-            } catch(e) { 
-                alert("Gagal menghapus transaksi secara permanen. Coba lagi."); 
-            }
-        }
-
-        async function renderRiwayat(container) {
+        // --- RENDER VIEWS ---
+        function renderPOS(container) {
             container.innerHTML = `
-                <div class="bg-white p-8 rounded-[2rem] border border-slate-200">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="font-black flex items-center gap-2">
-                            <i data-lucide="history" class="text-indigo-600"></i> Audit Transaksi
-                        </h3>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+                    <div class="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        ${[...MENU.roti, ...MENU.minuman].map(it => `
+                            <button onclick="addToCart('${it.id}')" class="bg-white p-4 rounded-3xl border border-slate-200 text-left hover:border-blue-500 shadow-sm active:scale-95 transition">
+                                <div class="text-[9px] text-slate-400 font-bold uppercase">${it.id.startsWith('r')?'Roti':'Minuman'}</div>
+                                <div class="text-xs font-bold text-slate-800 mb-2 leading-tight">${it.name}</div>
+                                <div class="text-blue-600 font-black text-sm">Rp ${it.price.toLocaleString()}</div>
+                            </button>`).join('')}
                     </div>
-                    <div id="hist-list" class="divide-y">
-                        <div class="py-10 text-center text-slate-400">Memuat riwayat...</div>
+                    <div class="lg:col-span-1 bg-white rounded-[2rem] border shadow-xl p-6 flex flex-col sticky-cart">
+                        <h3 class="font-black text-slate-900 text-sm mb-4">Ringkasan Pesanan</h3>
+                        <div id="cart-list" class="flex-1 overflow-y-auto space-y-2 mb-4 custom-scrollbar"></div>
+                        <div class="border-t pt-4">
+                            <div class="flex justify-between font-black text-lg mb-4"><span>Total</span><span id="total-price" class="text-blue-600">Rp 0</span></div>
+                            <div class="grid grid-cols-3 gap-2 mb-4">
+                                <button onclick="setPaymentMethod('Tunai')" data-method="Tunai" class="pay-opt payment-opt-active border-2 border-slate-100 py-2 rounded-xl text-[10px] font-black transition">TUNAI</button>
+                                <button onclick="setPaymentMethod('QRIS')" data-method="QRIS" class="pay-opt border-2 border-slate-100 py-2 rounded-xl text-[10px] font-black transition">QRIS</button>
+                                <button onclick="setPaymentMethod('Debit')" data-method="Debit" class="pay-opt border-2 border-slate-100 py-2 rounded-xl text-[10px] font-black transition">DEBIT</button>
+                            </div>
+                            <div class="relative mb-2">
+                                <input type="number" id="cash-input" oninput="calcChange()" placeholder="Jumlah Bayar" class="w-full p-4 rounded-2xl bg-slate-50 border-none font-black text-lg">
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 mb-4">
+                                <button onclick="setQuickCash('pas')" class="bg-slate-100 py-2 rounded-xl text-[10px] font-bold hover:bg-slate-200">PAS</button>
+                                <button onclick="setQuickCash(10000)" class="bg-slate-100 py-2 rounded-xl text-[10px] font-bold hover:bg-slate-200">10k</button>
+                                <button onclick="setQuickCash(50000)" class="bg-slate-100 py-2 rounded-xl text-[10px] font-bold hover:bg-slate-200">50k</button>
+                                <button onclick="setQuickCash(100000)" class="bg-slate-100 py-2 rounded-xl text-[10px] font-bold hover:bg-slate-200">100k</button>
+                            </div>
+                            <div class="flex justify-between text-green-600 font-bold text-sm bg-green-50 p-3 rounded-xl mb-4"><span>Kembalian</span><span id="change-display">Rp 0</span></div>
+                            <button id="pay-btn" onclick="processCheckout()" disabled class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg">PROSES TRANSAKSI</button>
+                        </div>
                     </div>
                 </div>`;
-            
-            initIcons();
-
-            try {
-                const snap = await getPublicCol('transactions').get();
-                const docs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
-                
-                const listEl = document.getElementById('hist-list');
-                if (listEl) {
-                    listEl.innerHTML = docs.map(d => `
-                        <div class="flex justify-between items-center py-4 group hover:bg-slate-50 rounded-xl px-2 transition-colors relative">
-                            <div class="cursor-pointer flex-1" onclick='showReceipt(${JSON.stringify(d)})'>
-                                <div class="font-bold text-slate-800">INV-${d.id.slice(-4).toUpperCase()}</div>
-                                <div class="text-[10px] text-slate-400 font-medium">${d.staff} • ${d.timestamp?.toDate ? d.timestamp.toDate().toLocaleString('id-ID') : ''}</div>
-                                <div class="text-[9px] text-slate-400 mt-1">
-                                    ${d.items?.map(it => `${it.qty}x ${it.name}`).join(', ') || ''}
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-6">
-                                <div class="text-right">
-                                    <div class="font-black text-indigo-600">Rp ${d.total.toLocaleString()}</div>
-                                    <div class="text-[8px] text-blue-500 uppercase font-black tracking-widest">Detail & Salin</div>
-                                </div>
-                                ${currentUser.role === 'spv' ? `
-                                    <div class="border-l border-slate-100 pl-4">
-                                        <button onclick="deleteTransaction('${d.id}')" class="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Hapus Permanen">
-                                            <i data-lucide="trash-2" class="w-5 h-5"></i>
-                                        </button>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `).join('') || '<div class="text-center py-20 text-slate-400 font-bold italic">Belum ada riwayat transaksi hari ini.</div>';
-                    
-                    initIcons();
-                }
-            } catch(e) { 
-                console.error(e);
-                const listEl = document.getElementById('hist-list');
-                if (listEl) listEl.innerHTML = '<div class="py-10 text-center text-red-500">Gagal memuat riwayat</div>';
-            }
+            updateCartUI();
         }
 
         function renderSaos(container) {
-            container.innerHTML = `
-                <div class="space-y-8 animate-fadeIn max-w-2xl mx-auto">
-                    <div class="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-lg">
-                        <h3 class="text-xl font-black mb-6 flex items-center gap-2"><i data-lucide="droplet" class="text-indigo-600"></i> Laporan Saos</h3>
-                        <div class="space-y-4">
-                            <label class="text-[10px] font-black uppercase text-slate-400">Pilih Varian Saos</label>
-                            <select id="saos-name" class="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-indigo-500">
-                                ${SAOS_VARIANTS.map(s => `<option value="${s}">${s}</option>`).join('')}
-                            </select>
-                            <label class="text-[10px] font-black uppercase text-slate-400">Jumlah Input (Pcs)</label>
-                            <input type="number" id="saos-qty" value="1" min="1" class="w-full p-4 bg-slate-50 rounded-2xl font-black outline-none focus:ring-2 focus:ring-indigo-500">
-                            <button onclick="submitSaos()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-black transition transform active:scale-95">SIMPAN LAPORAN</button>
-                        </div>
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
+            <div class="bg-white p-6 rounded-[2rem] border shadow-lg h-fit">
+                <h3 class="text-lg font-black mb-6 text-slate-800">Laporan Stok Saos</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Pilih Varian Saos</label>
+                        <select id="saos-name" class="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold">
+                            ${SAOS_VARIANTS.map(s => `<option value="${s}">${s}</option>`).join('')}
+                        </select>
                     </div>
-                    
-                    <div class="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
-                        <div class="p-6 border-b bg-slate-50">
-                            <h3 class="font-black text-slate-800 text-sm uppercase tracking-wider">Riwayat Input Saos (Hari Ini)</h3>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Jumlah (Porsi/Botol)</label>
+                        <input type="number" id="saos-qty" value="1" min="1" class="w-full p-4 bg-slate-50 border-none rounded-2xl font-black">
+                    </div>
+                    <button onclick="submitSaos()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black mt-4 active:scale-95 transition">SUBMIT DATA</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-[2rem] border shadow-lg overflow-hidden">
+                <h3 class="text-sm font-black mb-4 flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-blue-500"></i> Riwayat Input Hari Ini
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 text-slate-400 font-black uppercase tracking-tighter">
+                            <tr>
+                                <th class="px-4 py-3">Jam</th>
+                                <th class="px-4 py-3">Varian</th>
+                                <th class="px-4 py-3 text-right">Qty</th>
+                                <th class="px-4 py-3 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="local-saos-history" class="divide-y font-bold">
+                            <tr><td colspan="4" class="text-center py-10 text-slate-300">Memuat data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>`;
+    initIcons();
+    loadLocalSaosHistory();
+}
+
+async function loadLocalSaosHistory() {
+    const table = document.getElementById('local-saos-history');
+    if(!table) return;
+
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const snap = await getPublicCol('saos_usage').get();
+        
+        // SANGAT PENTING: Ambil ID dan Data
+        let docs = snap.docs.map(d => ({
+            id: d.id,
+            ...d.data()
+        }));
+
+        // Filter data
+        docs = docs.filter(d => 
+            d.outlet === currentUser.outlet && 
+            d.timestamp && 
+            d.timestamp.toDate().toISOString().split('T')[0] === today
+        );
+
+        // Urutkan
+        docs.sort((a,b) => b.timestamp.seconds - a.timestamp.seconds);
+
+        // Render HTML
+        table.innerHTML = docs.map(d => {
+            const jam = d.timestamp.toDate().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+            
+            return `
+                <tr class="hover:bg-slate-50 border-b border-slate-50">
+                    <td class="px-4 py-3 text-slate-400 font-medium">${jam}</td>
+                    <td class="px-4 py-3 text-slate-800 uppercase font-bold">${d.name}</td>
+                    <td class="px-4 py-3 text-right font-black text-blue-600">${d.qty}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="deleteSaos('${d.id}')" 
+                                class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-all mx-auto">
+                            <span class="text-xs">🗑️</span>
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('') || '<tr><td colspan="4" class="text-center py-10 text-slate-300">Belum ada input hari ini</td></tr>';
+        
+        // Coba jalankan ulang ikon jika library tersedia
+        if (typeof initIcons === 'function') initIcons();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    } catch (error) {
+        console.error("Detail Error:", error);
+        table.innerHTML = `<tr><td colspan="4" class="text-center py-10 text-red-500">Error: ${error.message}</td></tr>`;
+    }
+}
+// Fungsi Hapus yang didaftarkan ke window agar bisa diakses onclick
+window.deleteSaos = async function(id) {
+    if (!id) return;
+    
+    if (confirm("Hapus data input ini?")) {
+        try {
+            await getPublicCol('saos_usage').doc(id).delete();
+            // Refresh tabel saja tanpa reload halaman
+            loadLocalSaosHistory();
+        } catch (error) {
+            console.error("Error hapus:", error);
+            alert("Gagal menghapus data: " + error.message);
+        }
+    }
+}
+
+async function submitSaos() {
+    const qtyInput = document.getElementById('saos-qty');
+    const name = document.getElementById('saos-name').value;
+    const qty = parseInt(qtyInput.value);
+
+    if(!qty || qty < 1) {
+        alert("Masukkan jumlah yang valid");
+        return;
+    }
+
+    try {
+        await getPublicCol('saos_usage').add({ 
+            name, 
+            qty, 
+            staff: currentUser.name, 
+            outlet: currentUser.outlet, 
+            timestamp: firebase.firestore.Timestamp.now() 
+        });
+        
+        qtyInput.value = 1; // Reset input
+        loadLocalSaosHistory(); // Refresh tabel
+    } catch (error) {
+        alert("Gagal menyimpan data");
+    }
+}
+
+      // --- GLOBAL FILTERS & UTILITIES ---
+function getOutletFilterHTML(onchangeFn) {
+    return `
+        <div class="flex-1 min-w-[150px]">
+            <label class="text-[9px] font-black uppercase text-slate-400 block mb-2">Pilih Outlet</label>
+            <select id="spv-outlet-filter" onchange="${onchangeFn}" class="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-sm">
+                <option value="ALL">Semua Outlet</option>
+                ${Object.values(OUTLETS).map(o => `<option value="${o}">${o}</option>`).join('')}
+            </select>
+        </div>`;
+}
+
+// --- RIWAYAT TRANSAKSI ---
+async function renderRiwayat(container) {
+    container.innerHTML = `
+        <div class="bg-white p-6 rounded-[2rem] border animate-fadeIn">
+            <div class="flex flex-wrap gap-4 items-end mb-6">
+                <h3 class="font-black flex-1"><i data-lucide="history" class="inline w-5 h-5 mr-1"></i> Riwayat Transaksi</h3>
+                ${currentUser.role === 'spv' ? getOutletFilterHTML('loadRiwayatData()') : ''}
+            </div>
+            <div id="hist-list" class="divide-y"><div class="py-10 text-center text-slate-300">Memuat riwayat...</div></div>
+        </div>`;
+    initIcons();
+    loadRiwayatData();
+}
+
+async function loadRiwayatData() {
+    const listEl = document.getElementById('hist-list');
+    if (!listEl) return;
+    const outletFilter = document.getElementById('spv-outlet-filter')?.value || (currentUser.role === 'kasir' ? currentUser.outlet : 'ALL');
+    
+    const snap = await getPublicCol('transactions').get();
+    let docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    
+    if(outletFilter !== 'ALL') docs = docs.filter(d => d.outlet === outletFilter);
+    docs.sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
+    
+    listEl.innerHTML = docs.map(d => `
+        <div class="flex justify-between items-center py-4 px-2 hover:bg-slate-50 rounded-xl cursor-pointer" onclick='showReceipt(${JSON.stringify(d)})'>
+            <div>
+                <div class="font-bold text-sm">INV-${d.id.slice(-4).toUpperCase()} [${d.outlet}]</div>
+                <div class="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">${d.staff} • ${d.method} • ${d.timestamp?.toDate().toLocaleString('id-ID')}</div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="font-black text-indigo-600">Rp ${d.total.toLocaleString()}</div>
+                ${currentUser.role === 'spv' ? `
+                <button onclick="event.stopPropagation(); deleteTransaction('${d.id}')" class="bg-red-50 p-2 rounded-lg text-red-400 hover:bg-red-500 hover:text-white transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>` : ''}
+            </div>
+        </div>`).join('') || '<div class="text-center py-10 text-slate-400 font-bold">Tidak ada data</div>';
+    initIcons();
+}
+
+// --- FUNGSI HAPUS TRANSAKSI (UPDATED) ---
+async function deleteTransaction(id) {
+    if(confirm("Hapus transaksi ini? Data omset akan otomatis dihitung ulang.")) {
+        try {
+            await getPublicCol('transactions').doc(id).delete();
+            
+            // Refresh List Riwayat
+            await loadRiwayatData(); 
+            
+            // Refresh Analitik (Jika elemen dashboard ada)
+            if (document.getElementById('spv-date')) {
+                await loadSPVAnalytics();
+            }
+            
+            alert("Transaksi berhasil dihapus dan omset diperbarui.");
+        } catch (error) {
+            console.error("Gagal menghapus:", error);
+            alert("Gagal menghapus data.");
+        }
+    }
+}
+
+// --- DASHBOARD ANALITIK SPV ---
+async function renderSPVDashboard(container) {
+    container.innerHTML = `
+        <div class="space-y-6 animate-fadeIn">
+            <div class="flex flex-wrap gap-4 items-end bg-white p-6 rounded-3xl border">
+                <div class="flex-1 min-w-[150px]">
+                    <label class="text-[9px] font-black uppercase text-slate-400 block mb-2">Tanggal</label>
+                    <input type="date" id="spv-date" onchange="loadSPVAnalytics()" class="w-full p-3 bg-slate-50 rounded-xl font-bold">
+                </div>
+                ${getOutletFilterHTML('loadSPVAnalytics()')}
+                <div class="bg-slate-900 px-6 py-4 rounded-2xl flex-1 text-white">
+                    <div class="text-[9px] font-bold opacity-60 uppercase">Total Hari Ini</div>
+                    <div id="total-selected" class="text-xl font-black">Rp 0</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-indigo-600 p-8 rounded-[2rem] text-white shadow-lg shadow-indigo-200">
+                    <div class="text-[10px] font-bold opacity-70 uppercase">Omzet Bulan Ini</div>
+                    <div id="total-month" class="text-3xl font-black mt-2">Rp 0</div>
+                </div>
+                <div class="bg-white p-8 rounded-[2rem] border shadow-sm">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase">Omzet Tahun Ini</div>
+                    <div id="total-year" class="text-3xl font-black mt-2 text-slate-900">Rp 0</div>
+                </div>
+            </div>
+        </div>`;
+    
+    // Set default value ke hari ini
+    document.getElementById('spv-date').value = new Date().toISOString().split('T')[0];
+    initIcons();
+    loadSPVAnalytics();
+}
+
+async function loadSPVAnalytics() {
+    const dateInput = document.getElementById('spv-date')?.value;
+    const outlet = document.getElementById('spv-outlet-filter')?.value || 'ALL';
+    if (!dateInput) return;
+
+    const snap = await getPublicCol('transactions').get();
+    let data = snap.docs.map(d => d.data());
+    
+    // Filter Outlet
+    if(outlet !== 'ALL') data = data.filter(d => d.outlet === outlet);
+    
+    let dTot = 0, mTot = 0, yTot = 0;
+    const now = new Date(dateInput);
+    const selectedYear = now.getFullYear();
+    const selectedMonth = now.getMonth();
+
+    data.forEach(t => {
+        if (!t.timestamp) return;
+        const dt = t.timestamp.toDate();
+        const tDate = dt.toISOString().split('T')[0];
+        
+        // Hitung Total Terpilih (Hari yang dipilih di input date)
+        if(tDate === dateInput) dTot += t.total;
+        
+        // Hitung Total Bulan (Sesuai bulan dari input date)
+        if(dt.getMonth() === selectedMonth && dt.getFullYear() === selectedYear) mTot += t.total;
+        
+        // Hitung Total Tahun (Sesuai tahun dari input date)
+        if(dt.getFullYear() === selectedYear) yTot += t.total;
+    });
+
+    // Update ke UI
+    document.getElementById('total-selected').innerText = `Rp ${dTot.toLocaleString('id-ID')}`;
+    document.getElementById('total-month').innerText = `Rp ${mTot.toLocaleString('id-ID')}`;
+    document.getElementById('total-year').innerText = `Rp ${yTot.toLocaleString('id-ID')}`;
+}        async function renderSPVSaos(container) {
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-white p-6 rounded-[2rem] border shadow-sm flex flex-wrap items-end gap-4 no-print">
+                        <div class="flex-1 min-w-[150px]"><label class="text-[9px] font-black uppercase text-slate-400 block mb-2">Tanggal Analisa</label><input type="date" id="saos-date" onchange="loadSPVSaosData()" class="w-full p-3 bg-slate-50 rounded-xl font-bold border-none"></div>
+                        ${getOutletFilterHTML('loadSPVSaosData()')}
+                        <button onclick="exportTable('export-target-saos', 'REKAP_SAOS')" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-indigo-700 transition active:scale-95 shadow-lg">
+                            <i data-lucide="image" class="w-4 h-4"></i> Ekspor Gambar
+                        </button>
+                    </div>
+
+                    <div id="export-target-saos" class="bg-white p-8 rounded-[2rem] border shadow-lg animate-fadeIn">
+                        <div class="flex justify-between items-start mb-8">
+                            <div>
+                                <h3 class="font-black text-2xl text-slate-900">Rekapitulasi Saos</h3>
+                                <div class="flex items-center gap-3 mt-1">
+                                    <span id="display-outlet-saos" class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">Outlet: Semua</span>
+                                    <span id="display-date-saos" class="bg-slate-50 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">Tgl: -</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Digital Auth</div>
+                                <div class="text-[11px] font-bold text-slate-800">${new Date().toLocaleString('id-ID')}</div>
+                            </div>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead class="bg-white border-b">
+
+                        <div class="overflow-hidden rounded-2xl border border-slate-100">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-900 text-white font-black uppercase tracking-widest">
                                     <tr>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Waktu</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Varian Saos</th>
-                                        <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-right">Qty Input</th>
+                                        <th class="px-6 py-4">Outlet</th>
+                                        <th class="px-6 py-4">Jam</th>
+                                        <th class="px-6 py-4">Varian Saos</th>
+                                        <th class="px-6 py-4 text-right">Qty (Porsi)</th>
+                                        <th class="px-6 py-4 text-center no-print">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody id="kasir-saos-table-body" class="divide-y font-bold text-sm text-slate-700">
-                                    <tr><td colspan="3" class="px-6 py-10 text-center text-slate-400 italic">Memuat data...</td></tr>
-                                </tbody>
+                                <tbody id="spv-saos-table" class="divide-y font-bold text-slate-700 bg-white"></tbody>
+                                <tfoot class="bg-slate-50 font-black text-slate-900 border-t-2 border-slate-200">
+                                    <tr>
+                                        <td colspan="3" class="px-6 py-5 text-right uppercase tracking-widest">Total Keseluruhan</td>
+                                        <td id="saos-total-qty" class="px-6 py-5 text-right text-lg text-indigo-600">0</td>
+                                        <td class="no-print"></td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
+            document.getElementById('saos-date').value = new Date().toISOString().split('T')[0];
+            loadSPVSaosData();
+        }
+
+        async function loadSPVSaosData() {
+            const dateStr = document.getElementById('saos-date').value;
+            const outlet = document.getElementById('spv-outlet-filter').value;
+            const snap = await getPublicCol('saos_usage').get();
+            let docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            document.getElementById('display-date-saos').innerText = `Tgl: ${new Date(dateStr).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
+            document.getElementById('display-outlet-saos').innerText = `Outlet: ${outlet === 'ALL' ? 'Semua Outlet' : outlet}`;
+            docs = docs.filter(d => d.timestamp.toDate().toISOString().split('T')[0] === dateStr);
+            if(outlet !== 'ALL') docs = docs.filter(d => d.outlet === outlet);
+            docs.sort((a,b) => a.timestamp.seconds - b.timestamp.seconds);
+            let totalQty = 0;
+            document.getElementById('spv-saos-table').innerHTML = docs.map(d => {
+                totalQty += (d.qty || 0);
+                return `<tr><td class="px-6 py-4 text-blue-600 font-black uppercase text-[10px] tracking-tight">${d.outlet}</td><td class="px-6 py-4 text-slate-400">${d.timestamp.toDate().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</td><td class="px-6 py-4 uppercase font-bold">${d.name}</td><td class="px-6 py-4 text-right text-sm font-black text-slate-900">${d.qty}</td><td class="px-6 py-4 text-center no-print"><button onclick="deleteSaos('${d.id}')" class="text-slate-300 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
+            }).join('') || '<tr><td colspan="5" class="text-center py-20 text-slate-300 font-bold uppercase tracking-widest">Tidak ada data</td></tr>';
+            document.getElementById('saos-total-qty').innerText = totalQty;
             initIcons();
-            loadKasirSaosHistory();
         }
 
-        async function loadKasirSaosHistory() {
-            const tableBody = document.getElementById('kasir-saos-table-body');
-            if(!tableBody) return;
-            
-            try {
-                const today = new Date().toISOString().split('T')[0];
-                const snap = await getPublicCol('saos_usage').get();
-                const data = snap.docs
-                    .map(d => d.data())
-                    .filter(d => {
-                        const dt = d.timestamp?.toDate ? d.timestamp.toDate() : new Date();
-                        return dt.toISOString().split('T')[0] === today;
-                    })
-                    .sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
-
-                if(data.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-slate-400 italic">Belum ada input saos hari ini</td></tr>`;
-                    return;
-                }
-
-                tableBody.innerHTML = data.map(d => {
-                    const dt = d.timestamp?.toDate ? d.timestamp.toDate() : new Date();
-                    return `
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="px-6 py-4 text-indigo-500">${dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</td>
-                            <td class="px-6 py-4">${d.name}</td>
-                            <td class="px-6 py-4 text-right font-black text-slate-900">${d.qty} Pcs</td>
-                        </tr>
-                    `;
-                }).join('');
-            } catch(e) {
-                console.error(e);
-                tableBody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-red-400">Gagal memuat riwayat</td></tr>`;
-            }
+        async function deleteSaos(id) {
+            if(confirm("Hapus data saos?")) { await getPublicCol('saos_usage').doc(id).delete(); loadSPVSaosData(); }
         }
 
-        async function submitSaos() {
-            const qtyInput = document.getElementById('saos-qty');
-            const qty = parseInt(qtyInput?.value);
-            const variantInput = document.getElementById('saos-name');
-            const variant = variantInput?.value;
+        async function renderSPVTraffic(container) {
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-white p-6 rounded-[2rem] border shadow-sm flex flex-wrap items-end gap-4 no-print">
+                        <div class="flex-1 min-w-[150px]"><label class="text-[9px] font-black uppercase text-slate-400 block mb-2">Tanggal Trafik</label><input type="date" id="traffic-date" onchange="loadSPVTrafficData()" class="w-full p-3 bg-slate-50 rounded-xl font-bold border-none"></div>
+                        ${getOutletFilterHTML('loadSPVTrafficData()')}
+                        <button onclick="exportTable('export-target-traffic', 'REKAP_TRAFIK')" class="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-blue-700 transition active:scale-95 shadow-lg">
+                            <i data-lucide="image" class="w-4 h-4"></i> Ekspor Gambar
+                        </button>
+                    </div>
+
+                    <div id="export-target-traffic" class="bg-white p-8 rounded-[2rem] border shadow-lg animate-fadeIn">
+                        <div class="flex justify-between items-start mb-8">
+                            <div>
+                                <h3 class="font-black text-2xl text-slate-900">Trafik & Penjualan</h3>
+                                <div class="flex items-center gap-3 mt-1">
+                                    <span id="display-outlet-traffic" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">Outlet: Semua</span>
+                                    <span id="display-date-traffic" class="bg-slate-50 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">Tgl: -</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Laporan Trafik</div>
+                                <div class="text-[11px] font-bold text-slate-800">${new Date().toLocaleString('id-ID')}</div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-hidden rounded-2xl border border-slate-100">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-900 text-white font-black uppercase tracking-widest">
+                                    <tr>
+                                        <th class="px-6 py-4">Pukul</th>
+                                        <th class="px-6 py-4">Rincian Produk Terjual</th>
+                                        <th class="px-6 py-4 text-right">Omzet Jam</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="spv-traffic-table" class="divide-y font-bold text-slate-700 bg-white"></tbody>
+                                <tfoot class="bg-slate-50 font-black text-slate-900 border-t-2 border-slate-200">
+                                    <tr>
+                                        <td colspan="2" class="px-6 py-5 text-right uppercase tracking-widest text-sm">Grand Total Omzet</td>
+                                        <td id="traffic-total-amount" class="px-6 py-5 text-right text-lg text-blue-600">Rp 0</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('traffic-date').value = new Date().toISOString().split('T')[0];
+            loadSPVTrafficData();
+            initIcons();
+        }
+
+        async function loadSPVTrafficData() {
+            const dateStr = document.getElementById('traffic-date').value;
+            const outlet = document.getElementById('spv-outlet-filter').value;
+            const snap = await getPublicCol('transactions').get();
+            let trans = snap.docs.map(d => d.data());
             
-            if(isNaN(qty) || qty <= 0) {
-                alert("Jumlah harus lebih dari 0");
-                return;
-            }
+            document.getElementById('display-date-traffic').innerText = `Tgl: ${new Date(dateStr).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
+            document.getElementById('display-outlet-traffic').innerText = `Outlet: ${outlet === 'ALL' ? 'Semua Outlet' : outlet}`;
+            
+            trans = trans.filter(d => d.timestamp.toDate().toISOString().split('T')[0] === dateStr);
+            if(outlet !== 'ALL') trans = trans.filter(d => d.outlet === outlet);
+            
+            const hours = {};
+            trans.forEach(t => {
+                const h = t.hour || 0;
+                if(!hours[h]) hours[h] = { total: 0, items: {} };
+                hours[h].total += t.total;
+                t.items?.forEach(it => { hours[h].items[it.name] = (hours[h].items[it.name] || 0) + it.qty; });
+            });
+            
+            let grandTotal = 0;
+            const tableBody = document.getElementById('spv-traffic-table');
+            const sortedHours = Object.entries(hours).sort((a,b) => a[0] - b[0]);
+            
+            tableBody.innerHTML = sortedHours.map(([h, st]) => {
+                grandTotal += st.total;
+                const itemDetails = Object.entries(st.items).map(([name, qty]) => `<span class="inline-block bg-slate-100 px-2 py-1 rounded-lg text-[9px] mr-1 mb-1">${name} (${qty})</span>`).join('');
+                return `
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-6 py-5 font-black text-indigo-600">${h.toString().padStart(2, '0')}:00</td>
+                        <td class="px-6 py-5">${itemDetails}</td>
+                        <td class="px-6 py-5 text-right text-sm font-black">Rp ${st.total.toLocaleString()}</td>
+                    </tr>`;
+            }).join('') || '<tr><td colspan="3" class="text-center py-20 text-slate-300 font-bold uppercase tracking-widest">Belum ada trafik transaksi</td></tr>';
+            
+            document.getElementById('traffic-total-amount').innerText = `Rp ${grandTotal.toLocaleString()}`;
+        }
+
+        async function exportTable(targetId, filenamePrefix) {
+            const target = document.getElementById(targetId);
+            const btn = document.activeElement;
+            const originalText = btn.innerHTML;
+            
+            const noPrintElements = target.querySelectorAll('.no-print');
+            noPrintElements.forEach(el => el.style.display = 'none');
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+
             try {
-                await getPublicCol('saos_usage').add({
-                    name: variant,
-                    qty: qty,
-                    staff: currentUser.name,
-                    timestamp: firebase.firestore.Timestamp.now()
+                const canvas = await html2canvas(target, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    useCORS: true
                 });
-                alert(`Berhasil menyimpan laporan: ${variant} x${qty}`);
-                if (qtyInput) qtyInput.value = "1";
-                loadKasirSaosHistory();
-            } catch(e) { alert("Terjadi kesalahan: " + e.message); }
+                
+                const image = canvas.toDataURL("image/png");
+                const link = document.createElement('a');
+                const dateStr = document.querySelector('input[type="date"]').value;
+                
+                link.download = `${filenamePrefix}_${dateStr}.png`;
+                link.href = image;
+                link.click();
+            } catch (e) {
+                console.error("Export failed", e);
+            } finally {
+                noPrintElements.forEach(el => el.style.display = '');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                initIcons();
+            }
         }
 
-        window.onload = initIcons;
+        window.onload = () => { initIcons(); };
     </script>
 </body>
 </html>
