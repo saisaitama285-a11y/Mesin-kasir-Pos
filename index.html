@@ -14,16 +14,51 @@
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
         .print-only { display: none; }
-        @media print {
-            .no-print { display: none !important; }
-            .print-only { display: block !important; }
-            body { background: white; }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        
+@media print {
+    @page { 
+        margin: 0; 
+        size: auto; 
+    }
+    
+    body > *:not(#receipt-modal) {
+        display: none !important;
+    }
+    
+    #receipt-modal {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: white !important;
+        z-index: 9999 !important;
+    }
+
+    #receipt-modal > div {
+        width: 100% !important;
+        max-width: 105mm !important; /* Ukuran A6, jika pakai 58mm ganti ke 58mm */
+        padding: 10px !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    #receipt-content pre {
+        /* WAJIB: Courier New agar spasi antar huruf sama besar */
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 12pt !important;
+        line-height: 1.3;
+        width: 100% !important;
+        text-align: left !important;
+        white-space: pre-wrap !important;
+        color: black !important;
+    }
+
+    .no-print, button, .bg-slate-900\/80 {
+        display: none !important;
+    }
+}
         .theme-spv .nav-btn-active { background-color: #4f46e5 !important; color: white !important; }
         .theme-kasir .nav-btn-active { background-color: #2563eb !important; color: white !important; }
 
@@ -131,11 +166,12 @@
         let selectedPayment = 'Tunai';
 
         const OUTLETS = {
-            'OUTLET-KARET': 'Outlet Karet',
+           
             'OUTLET-TA1': 'Tanah Abang 1',
             'OUTLET-TA2': 'Tanah Abang 2',
             'OUTLET-DURI1': 'Duri 1',
             'OUTLET-DURI2': 'Duri 2',
+             'OUTLET-KARET': 'Karet',
             'OUTLET-GROGOL': 'Grogol'
         };
 
@@ -159,33 +195,161 @@
         function initIcons() { if (window.lucide) lucide.createIcons(); }
 
         async function handleLogin() {
-            const btn = document.getElementById('login-btn');
-            const token = document.getElementById('token-input').value.toUpperCase().trim();
-            if (!token) return;
+    const btn = document.getElementById('login-btn');
+    const tokenInput = document.getElementById('token-input').value.toUpperCase().trim();
+    const errorEl = document.getElementById('login-error');
+    if (!tokenInput) return;
 
-            btn.disabled = true;
-            if (OUTLETS[token]) {
-                currentUser = { role: 'kasir', name: 'Kasir', outlet: OUTLETS[token], token };
-                document.body.className = "bg-slate-50 theme-kasir";
-            } else if (token.startsWith('SPV')) {
-                currentUser = { role: 'spv', name: 'SPV Operational', outlet: 'All Outlets', token };
-                document.body.className = "bg-slate-50 theme-spv";
-            } else {
-                document.getElementById('login-error').innerText = "Token Tidak Valid";
-                document.getElementById('login-error').classList.remove('hidden');
-                btn.disabled = false;
-                return;
-            }
+    btn.disabled = true;
+    errorEl.classList.add('hidden');
 
-            await auth.signInAnonymously();
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('main-app').classList.remove('hidden');
-            document.getElementById('user-display').innerText = currentUser.name;
-            document.getElementById('header-outlet-name').innerText = currentUser.outlet;
-            document.getElementById('role-text').innerText = currentUser.role === 'spv' ? 'Supervisor Mode' : 'Cashier Mode';
-            initNavigation();
-        }
+    try {
+        await auth.signInAnonymously();
+        
+        // 1. Cek apakah ini Master Token SPV (Static)
+        if (tokenInput.startsWith('SPV')) {
+            currentUser = { role: 'spv', name: 'SPV Operational', outlet: 'All Outlets', token: tokenInput };
+            document.body.className = "bg-slate-50 theme-spv";
+        } 
+        // ... (bagian login SPV)
+else {
+    // 2. Cek Token Karyawan di Firestore
+    const tokenSnap = await getPublicCol('tokens').doc(tokenInput).get();
+    
+    if (tokenSnap.exists) {
+        const data = tokenSnap.data();
+        currentUser = { 
+            role: 'kasir', 
+            name: data.karyawan, 
+            outlet: data.outlet, 
+            shift: data.shift,
+            token: tokenInput 
+        };
+        document.body.className = "bg-slate-50 theme-kasir";
+    } else {
+        // Jika tidak ada di SPV dan tidak ada di Database, maka GAGAL
+        throw new Error("Token Tidak Terdaftar / Kadaluarsa");
+    }
+}
+// ...
 
+        // Jalankan App
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        document.getElementById('user-display').innerText = currentUser.name;
+        document.getElementById('header-outlet-name').innerText = currentUser.outlet;
+        document.getElementById('role-text').innerText = currentUser.role === 'spv' ? 'Supervisor Mode' : `Shift: ${currentUser.shift || 'Reguler'}`;
+        initNavigation();
+
+    } catch (error) {
+        errorEl.innerText = error.message;
+        errorEl.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+    }
+}
+// Render Halaman Kelola Token
+function renderSPVTokens(container) {
+    container.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+        <div class="lg:col-span-1 bg-white p-6 rounded-[2rem] border shadow-lg h-fit">
+            <h3 class="font-black text-lg mb-6">Generate Token Baru</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Nama Karyawan</label>
+                    <input type="text" id="tk-nama" placeholder="Contoh: Budi" class="w-full p-3 bg-slate-50 border-none rounded-xl font-bold">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Outlet</label>
+                    <select id="tk-outlet" class="w-full p-3 bg-slate-50 border-none rounded-xl font-bold">
+                        ${Object.values(OUTLETS).map(o => `<option value="${o}">${o}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Shift</label>
+                    <select id="tk-shift" class="w-full p-3 bg-slate-50 border-none rounded-xl font-bold">
+                        <option value="Pagi">Pagi (05:30 - 14:00)</option>
+                        <option value="Sore">Sianh (14:00 - 22:00)</option>
+                        <option value="Full">Full Day</option>
+                    </select>
+                </div>
+                <button onclick="generateToken()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">BUAT TOKEN</button>
+            </div>
+        </div>
+        
+        <div class="lg:col-span-2 bg-white p-6 rounded-[2rem] border shadow-lg">
+            <h3 class="font-black text-lg mb-4 text-slate-800">Daftar Token Aktif</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-slate-400 uppercase font-black border-b">
+                            <th class="py-3 px-2">Token</th>
+                            <th class="py-3 px-2">Karyawan</th>
+                            <th class="py-3 px-2">Outlet / Shift</th>
+                            <th class="py-3 px-2 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="token-table-body" class="divide-y font-bold"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>`;
+    loadTokenList();
+}
+
+// Logika Membuat Token Acak
+async function generateToken() {
+    const karyawan = document.getElementById('tk-nama').value.trim();
+    const outlet = document.getElementById('tk-outlet').value;
+    const shift = document.getElementById('tk-shift').value;
+
+    if(!karyawan) return alert("Masukkan nama karyawan!");
+
+    // Generate 6 digit kode unik
+    const newToken = "PRO" + Math.random().toString(36).substring(2, 5).toUpperCase() + Math.floor(10 + Math.random() * 90);
+
+    try {
+        await getPublicCol('tokens').doc(newToken).set({
+            karyawan, outlet, shift,
+            createdAt: firebase.firestore.Timestamp.now(),
+            createdBy: currentUser.name
+        });
+        document.getElementById('tk-nama').value = '';
+        loadTokenList();
+        alert(`Token berhasil dibuat: ${newToken}`);
+    } catch (e) {
+        alert("Gagal membuat token: " + e.message);
+    }
+}
+
+// Load List Token dari Firestore
+async function loadTokenList() {
+    const tbody = document.getElementById('token-table-body');
+    const snap = await getPublicCol('tokens').get();
+    
+    tbody.innerHTML = snap.docs.map(doc => {
+        const d = doc.data();
+        return `
+        <tr class="hover:bg-slate-50">
+            <td class="py-4 px-2 text-indigo-600 font-black tracking-widest">${doc.id}</td>
+            <td class="py-4 px-2">${d.karyawan}</td>
+            <td class="py-4 px-2 text-slate-500">${d.outlet}<br><span class="text-[10px] text-blue-500">${d.shift}</span></td>
+            <td class="py-4 px-2 text-center">
+                <button onclick="deleteToken('${doc.id}')" class="text-red-400 hover:text-red-600 p-2">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="4" class="text-center py-10 text-slate-300">Belum ada token aktif</td></tr>';
+    initIcons();
+}
+
+async function deleteToken(id) {
+    if(confirm("Hapus token ini? Karyawan tersebut tidak akan bisa login lagi.")) {
+        await getPublicCol('tokens').doc(id).delete();
+        loadTokenList();
+    }
+}
         function logout() { location.reload(); }
 
         function initNavigation() {
@@ -195,7 +359,8 @@
                 { id: 'saos', label: 'Input Saos', icon: 'droplet' },
                 { id: 'riwayat', label: 'Riwayat', icon: 'history' }
             ] : [
-                { id: 'spv_dashboard', label: 'Monitoring', icon: 'bar-chart-3' },
+                { id: 'spv_dashboard', label: 'Monitoring', icon: 'bar-chart-3'},
+                { id: 'spv_tokens', label: 'Kelola Token', icon: 'key' },
                 { id: 'spv_saos', label: 'Data Saos', icon: 'package' },
                 { id: 'spv_traffic', label: 'Trafik', icon: 'clock' },
                 { id: 'riwayat', label: 'Audit Transaksi', icon: 'shield-check' }
@@ -213,6 +378,7 @@
             else if(viewId === 'saos') renderSaos(container);
             else if(viewId === 'riwayat') renderRiwayat(container);
             else if(viewId === 'spv_dashboard') renderSPVDashboard(container);
+            else if(viewId === 'spv_tokens') renderSPVTokens(container);
             else if(viewId === 'spv_saos') renderSPVSaos(container);
             else if(viewId === 'spv_traffic') renderSPVTraffic(container);
             initIcons();
@@ -229,8 +395,8 @@
         }
 
         function updateCartUI() {
-            const list = document.getElementById('cart-list');
-            if(!list) return;
+    const list = document.getElementById('cart-list');
+    if(!list) return;
             list.innerHTML = currentCart.map((it, idx) => `
                 <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex justify-between items-center animate-fadeIn">
                     <div class="flex-1 overflow-hidden">
@@ -244,9 +410,16 @@
                     </div>
                 </div>`).join('');
             const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-            document.getElementById('total-price').innerText = `Rp ${total.toLocaleString()}`;
-            calcChange();
-        }
+    document.getElementById('total-price').innerText = `Rp ${total.toLocaleString()}`;
+
+    // TAMBAHKAN LOGIKA INI:
+    const cashInput = document.getElementById('cash-input');
+    if (selectedPayment !== 'Tunai' && cashInput) {
+        cashInput.value = total;
+    }
+
+    calcChange();
+}
 
         function changeQty(idx, delta) {
             currentCart[idx].qty += delta;
@@ -255,26 +428,41 @@
         }
 
         function setPaymentMethod(method) {
-            selectedPayment = method;
-            document.querySelectorAll('.pay-opt').forEach(btn => {
-                btn.classList.toggle('payment-opt-active', btn.dataset.method === method);
-            });
-            if (method !== 'Tunai') {
-                const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-                document.getElementById('cash-input').value = total;
-            }
-            calcChange();
-        }
+    selectedPayment = method;
+    const cashInput = document.getElementById('cash-input');
+    const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
+
+    document.querySelectorAll('.pay-opt').forEach(btn => {
+        btn.classList.toggle('payment-opt-active', btn.dataset.method === method);
+    });
+
+    if (method !== 'Tunai') {
+        // Jika QRIS/Debit, isi otomatis dan kunci input
+        cashInput.value = total;
+        cashInput.readOnly = true;
+        cashInput.classList.add('bg-slate-200'); // Beri warna beda agar terlihat terkunci
+        cashInput.classList.remove('bg-slate-50');
+    } else {
+        // Jika Tunai, kosongkan (atau biarkan) dan buka kunci
+        cashInput.readOnly = false;
+        cashInput.classList.remove('bg-slate-200');
+        cashInput.classList.add('bg-slate-50');
+        cashInput.value = ''; 
+    }
+    calcChange();
+}
 
         function setQuickCash(amount) {
-            const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-            if (amount === 'pas') {
-                document.getElementById('cash-input').value = total;
-            } else {
-                document.getElementById('cash-input').value = amount;
-            }
-            calcChange();
-        }
+    if (selectedPayment !== 'Tunai') return; // Tambahkan baris ini
+    
+    const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
+    if (amount === 'pas') {
+        document.getElementById('cash-input').value = total;
+    } else {
+        document.getElementById('cash-input').value = amount;
+    }
+    calcChange();
+}
 
         function calcChange() {
             const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
@@ -284,39 +472,122 @@
         }
 
         async function processCheckout() {
-            const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
-            const cash = parseInt(document.getElementById('cash-input').value);
-            const data = {
-                items: currentCart.map(it => ({...it})),
-                total, cash, change: cash - total,
-                method: selectedPayment,
-                timestamp: firebase.firestore.Timestamp.now(),
-                staff: currentUser.name,
-                outlet: currentUser.outlet,
-                hour: new Date().getHours()
-            };
-            await getPublicCol('transactions').add(data);
-            showReceipt(data);
-            currentCart = [];
-            document.getElementById('cash-input').value = '';
-            selectedPayment = 'Tunai';
-            updateCartUI();
-        }
+    const payBtn = document.getElementById('pay-btn');
+    const total = currentCart.reduce((a, b) => a + (b.price * b.qty), 0);
+    const cash = parseInt(document.getElementById('cash-input').value || 0);
+
+    if (total === 0 || cash < total) return;
+
+    payBtn.disabled = true;
+    payBtn.innerText = "MEMPROSES...";
+
+    const data = {
+        items: currentCart.map(it => ({...it})),
+        total, cash, change: cash - total,
+        method: selectedPayment,
+        timestamp: firebase.firestore.Timestamp.now(),
+        staff: currentUser.name,
+        outlet: currentUser.outlet,
+        hour: new Date().getHours()
+    };
+    
+    try {
+        await getPublicCol('transactions').add(data);
+        showReceipt(data);
+        
+        // Reset state aplikasi
+        currentCart = [];
+        document.getElementById('cash-input').value = '';
+        updateCartUI();
+
+        // PENTING: Jeda 800ms agar browser sempat merender modal sebelum dialog print muncul
+        setTimeout(() => {
+            window.print();
+        }, 800);
+
+    } catch (error) {
+        alert("Gagal memproses: " + error.message);
+    } finally {
+        payBtn.disabled = false;
+        payBtn.innerText = "PROSES TRANSAKSI";
+    }
+}
 
         function showReceipt(data) {
-            const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
-            let text = `   ${data.outlet.toUpperCase()}\n--------------------------\n`;
-            text += `Tgl : ${date.toLocaleString()}\nStaf: ${data.staff}\nTipe: ${data.method}\n--------------------------\n`;
-            data.items.forEach(it => text += `${it.name.padEnd(18)} x${it.qty}\n             Rp ${(it.price * it.qty).toLocaleString()}\n`);
-            text += `--------------------------\nTOTAL    : Rp ${data.total.toLocaleString()}\n`;
-            text += `BAYAR    : Rp ${data.cash.toLocaleString()}\n`;
-            text += `KEMBALI  : Rp ${data.change.toLocaleString()}\n--------------------------\n`;
-            document.getElementById('receipt-content').innerHTML = `<pre class="whitespace-pre-wrap">${text}</pre>`;
-            document.getElementById('receipt-modal').classList.replace('hidden', 'flex');
-        }
+    const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
+    const formatDate = date.toLocaleDateString('id-ID') + " " + date.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
+    
+    const width = 32; 
+    const line = "=".repeat(width);
+    const dash = "-".repeat(width);
 
-        function closeReceipt() { document.getElementById('receipt-modal').classList.replace('flex', 'hidden'); }
+    // Helper agar teks tepat di tengah
+    const center = (txt) => {
+        const space = Math.max(0, Math.floor((width - txt.length) / 2));
+        return " ".repeat(space) + txt;
+    };
 
+    // Helper agar teks rata kiri-kanan (Justify)
+    const row = (l, r) => {
+        const leftPart = String(l);
+        const rightPart = String(r);
+        const spaceNeeded = width - (leftPart.length + rightPart.length);
+        return leftPart + " ".repeat(Math.max(1, spaceNeeded)) + rightPart;
+    };
+
+    let text = `\n${center("FAST PRO KASIR")}\n`;
+    text += `${center(data.outlet.toUpperCase())}\n`;
+    text += `${line}\n`;
+    text += `Waktu : ${formatDate}\n`;
+    text += `Kasir : ${data.staff}\n`;
+    text += `Metode: ${data.method}\n`;
+    text += `${dash}\n`;
+
+    data.items.forEach(it => {
+        // Nama barang dipotong jika lebih dari 32 karakter agar tidak merusak baris
+        const name = it.name.length > width ? it.name.substring(0, width-3) + "..." : it.name;
+        text += `${name.toUpperCase()}\n`;
+        
+        const detail = `  ${it.qty} x ${it.price.toLocaleString()}`;
+        const subtotal = (it.price * it.qty).toLocaleString();
+        text += row(detail, subtotal) + "\n";
+    });
+
+    text += `${dash}\n`;
+    text += row("TOTAL", `Rp ${data.total.toLocaleString()}`) + "\n";
+    text += row("BAYAR", `Rp ${data.cash.toLocaleString()}`) + "\n";
+    text += row("KEMBALI", `Rp ${data.change.toLocaleString()}`) + "\n";
+    text += `${line}\n`;
+    text += `\n${center("Barang tidak dapat ditukar")}\n`;
+    text += `${center("*** TERIMA KASIH ***")}\n\n\n\n`;
+
+    // Tampilkan di layar
+    const content = document.getElementById('receipt-content');
+    content.innerHTML = `<pre class="font-mono text-[10px] leading-tight">${text}</pre>`;
+    
+    // Aktifkan fitur Copy Text agar format struk tetap rapi saat di-share
+    const copyBtn = document.getElementById('copy-text-btn');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(text);
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = "✅ Berhasil Disalin";
+            setTimeout(() => { copyBtn.innerHTML = originalText; }, 2000);
+        };
+    }
+
+    document.getElementById('receipt-modal').classList.replace('hidden', 'flex');
+}
+
+     // Tambahkan fungsi ini agar tombol tutup bisa bekerja
+function closeReceipt() {
+    const modal = document.getElementById('receipt-modal');
+    modal.classList.replace('flex', 'hidden');
+    document.body.style.overflow = 'auto'; // Agar layar bisa di-scroll lagi
+    
+    // Opsional: Reset input kasir untuk transaksi berikutnya
+    document.getElementById('cash-input').value = '';
+}
         // --- RENDER VIEWS ---
         function renderPOS(container) {
             container.innerHTML = `
@@ -357,6 +628,11 @@
         }
 
         function renderSaos(container) {
+    // Ambil waktu lokal sekarang untuk default value (format HH:mm)
+    const now = new Date();
+    const currentTime = now.getHours().toString().padStart(2, '0') + ":" + 
+                        now.getMinutes().toString().padStart(2, '0');
+
     container.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
             <div class="bg-white p-6 rounded-[2rem] border shadow-lg h-fit">
@@ -367,6 +643,10 @@
                         <select id="saos-name" class="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold">
                             ${SAOS_VARIANTS.map(s => `<option value="${s}">${s}</option>`).join('')}
                         </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Waktu Input (Jam)</label>
+                        <input type="time" id="saos-time" value="${currentTime}" class="w-full p-4 bg-slate-50 border-none rounded-2xl font-black">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Jumlah (Porsi/Botol)</label>
@@ -406,29 +686,29 @@ async function loadLocalSaosHistory() {
     if(!table) return;
 
     try {
-        const today = new Date().toISOString().split('T')[0];
+        // Mengambil tanggal hari ini dalam format lokal (bukan UTC)
+        const now = new Date();
+        const todayStr = now.toLocaleDateString('en-CA'); // Hasilnya "YYYY-MM-DD"
+
         const snap = await getPublicCol('saos_usage').get();
         
-        // SANGAT PENTING: Ambil ID dan Data
         let docs = snap.docs.map(d => ({
             id: d.id,
             ...d.data()
         }));
 
-        // Filter data
-        docs = docs.filter(d => 
-            d.outlet === currentUser.outlet && 
-            d.timestamp && 
-            d.timestamp.toDate().toISOString().split('T')[0] === today
-        );
+        // Filter berdasarkan outlet dan tanggal lokal
+        docs = docs.filter(d => {
+            if (!d.timestamp || d.outlet !== currentUser.outlet) return false;
+            const docDateStr = d.timestamp.toDate().toLocaleDateString('en-CA');
+            return docDateStr === todayStr;
+        });
 
-        // Urutkan
+        // Urutkan dari yang terbaru (berdasarkan jam)
         docs.sort((a,b) => b.timestamp.seconds - a.timestamp.seconds);
 
-        // Render HTML
         table.innerHTML = docs.map(d => {
             const jam = d.timestamp.toDate().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
-            
             return `
                 <tr class="hover:bg-slate-50 border-b border-slate-50">
                     <td class="px-4 py-3 text-slate-400 font-medium">${jam}</td>
@@ -437,41 +717,26 @@ async function loadLocalSaosHistory() {
                     <td class="px-4 py-3 text-center">
                         <button onclick="deleteSaos('${d.id}')" 
                                 class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-all mx-auto">
-                            <span class="text-xs">🗑️</span>
+                            <span>🗑️</span>
                         </button>
                     </td>
                 </tr>`;
         }).join('') || '<tr><td colspan="4" class="text-center py-10 text-slate-300">Belum ada input hari ini</td></tr>';
         
-        // Coba jalankan ulang ikon jika library tersedia
-        if (typeof initIcons === 'function') initIcons();
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
     } catch (error) {
-        console.error("Detail Error:", error);
-        table.innerHTML = `<tr><td colspan="4" class="text-center py-10 text-red-500">Error: ${error.message}</td></tr>`;
-    }
-}
-// Fungsi Hapus yang didaftarkan ke window agar bisa diakses onclick
-window.deleteSaos = async function(id) {
-    if (!id) return;
-    
-    if (confirm("Hapus data input ini?")) {
-        try {
-            await getPublicCol('saos_usage').doc(id).delete();
-            // Refresh tabel saja tanpa reload halaman
-            loadLocalSaosHistory();
-        } catch (error) {
-            console.error("Error hapus:", error);
-            alert("Gagal menghapus data: " + error.message);
-        }
+        console.error("Error:", error);
+        table.innerHTML = `<tr><td colspan="4" class="text-center py-10 text-red-500">Gagal memuat data</td></tr>`;
     }
 }
 
 async function submitSaos() {
     const qtyInput = document.getElementById('saos-qty');
+    const timeInput = document.getElementById('saos-time');
     const name = document.getElementById('saos-name').value;
     const qty = parseInt(qtyInput.value);
+    const selectedTime = timeInput.value;
 
     if(!qty || qty < 1) {
         alert("Masukkan jumlah yang valid");
@@ -479,21 +744,31 @@ async function submitSaos() {
     }
 
     try {
+        const [hours, minutes] = selectedTime.split(':');
+        const finalTimestamp = new Date();
+        finalTimestamp.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+        // Menyimpan data ke Firestore
         await getPublicCol('saos_usage').add({ 
             name, 
             qty, 
             staff: currentUser.name, 
             outlet: currentUser.outlet, 
-            timestamp: firebase.firestore.Timestamp.now() 
+            timestamp: firebase.firestore.Timestamp.fromDate(finalTimestamp) 
         });
         
-        qtyInput.value = 1; // Reset input
-        loadLocalSaosHistory(); // Refresh tabel
+        qtyInput.value = 1; 
+        
+        // Memberikan jeda 500ms agar data benar-benar sudah terindeks di server
+        setTimeout(() => {
+            loadLocalSaosHistory();
+            alert("Data saos berhasil disimpan!");
+        }, 500);
+
     } catch (error) {
-        alert("Gagal menyimpan data");
+        alert("Gagal menyimpan data: " + error.message);
     }
 }
-
       // --- GLOBAL FILTERS & UTILITIES ---
 function getOutletFilterHTML(onchangeFn) {
     return `
@@ -508,67 +783,125 @@ function getOutletFilterHTML(onchangeFn) {
 
 // --- RIWAYAT TRANSAKSI ---
 async function renderRiwayat(container) {
+    // Set default value ke tanggal hari ini
+    const today = new Date().toISOString().split('T')[0];
+
     container.innerHTML = `
         <div class="bg-white p-6 rounded-[2rem] border animate-fadeIn">
             <div class="flex flex-wrap gap-4 items-end mb-6">
-                <h3 class="font-black flex-1"><i data-lucide="history" class="inline w-5 h-5 mr-1"></i> Riwayat Transaksi</h3>
-                ${currentUser.role === 'spv' ? getOutletFilterHTML('loadRiwayatData()') : ''}
+                <div class="flex-1 min-w-[200px]">
+                    <h3 class="font-black mb-3 flex items-center gap-2 text-slate-800">
+                        <i data-lucide="history" class="w-5 h-5 text-indigo-600"></i> Riwayat Transaksi
+                    </h3>
+                    <div class="flex flex-wrap gap-3">
+                        <div class="flex-1 min-w-[140px]">
+                            <label class="text-[9px] font-black uppercase text-slate-400 block mb-1 ml-1">Filter Tanggal</label>
+                            <input type="date" id="hist-date-filter" value="${today}" onchange="loadRiwayatData()" 
+                                class="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-sm focus:ring-2 focus:ring-indigo-500 transition">
+                        </div>
+                        ${currentUser.role === 'spv' ? getOutletFilterHTML('loadRiwayatData()') : ''}
+                    </div>
+                </div>
             </div>
-            <div id="hist-list" class="divide-y"><div class="py-10 text-center text-slate-300">Memuat riwayat...</div></div>
+            <div id="hist-list" class="divide-y border-t border-slate-50 mt-2">
+                <div class="py-10 text-center text-slate-300">Memuat data transaksi...</div>
+            </div>
         </div>`;
+    
     initIcons();
     loadRiwayatData();
 }
-
 async function loadRiwayatData() {
     const listEl = document.getElementById('hist-list');
     if (!listEl) return;
+    
+    // Ambil nilai filter dari UI
+    const dateFilter = document.getElementById('hist-date-filter').value;
     const outletFilter = document.getElementById('spv-outlet-filter')?.value || (currentUser.role === 'kasir' ? currentUser.outlet : 'ALL');
     
-    const snap = await getPublicCol('transactions').get();
-    let docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
-    
-    if(outletFilter !== 'ALL') docs = docs.filter(d => d.outlet === outletFilter);
-    docs.sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
-    
-    listEl.innerHTML = docs.map(d => `
-        <div class="flex justify-between items-center py-4 px-2 hover:bg-slate-50 rounded-xl cursor-pointer" onclick='showReceipt(${JSON.stringify(d)})'>
-            <div>
-                <div class="font-bold text-sm">INV-${d.id.slice(-4).toUpperCase()} [${d.outlet}]</div>
-                <div class="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">${d.staff} • ${d.method} • ${d.timestamp?.toDate().toLocaleString('id-ID')}</div>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="font-black text-indigo-600">Rp ${d.total.toLocaleString()}</div>
-                ${currentUser.role === 'spv' ? `
-                <button onclick="event.stopPropagation(); deleteTransaction('${d.id}')" class="bg-red-50 p-2 rounded-lg text-red-400 hover:bg-red-500 hover:text-white transition">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>` : ''}
-            </div>
-        </div>`).join('') || '<div class="text-center py-10 text-slate-400 font-bold">Tidak ada data</div>';
-    initIcons();
+    try {
+        const snap = await getPublicCol('transactions').get();
+        let docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+        
+        // 1. Filter Berdasarkan Tanggal (WAJIB)
+        if (dateFilter) {
+            docs = docs.filter(d => {
+                if (!d.timestamp) return false;
+                const docDate = d.timestamp.toDate().toISOString().split('T')[0];
+                return docDate === dateFilter;
+            });
+        }
+
+        // 2. Filter Berdasarkan Outlet (Otomatis untuk Kasir, Pilihan untuk SPV)
+        if (outletFilter !== 'ALL') {
+            docs = docs.filter(d => d.outlet === outletFilter);
+        }
+
+        // 3. Urutkan: Transaksi terbaru muncul paling atas
+        docs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        
+        // 4. Render ke HTML
+        listEl.innerHTML = docs.map(d => `
+            <div class="flex justify-between items-center py-4 px-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group" 
+                 onclick='showReceipt(${JSON.stringify(d)})'>
+                <div>
+                    <div class="font-bold text-sm text-slate-800 group-hover:text-indigo-600 transition">INV-${d.id.slice(-4).toUpperCase()}</div>
+                    <div class="text-[9px] text-slate-400 uppercase font-bold tracking-tight">
+                        ${d.staff} • ${d.method} • ${d.timestamp?.toDate().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="font-black text-slate-900">Rp ${d.total.toLocaleString()}</div>
+                        <div class="text-[8px] text-indigo-500 font-bold uppercase">${d.outlet}</div>
+                    </div>
+                    ${currentUser.role === 'spv' ? `
+                    <button onclick="event.stopPropagation(); deleteTransaction('${d.id}')" 
+                        class="bg-red-50 p-2 rounded-lg text-red-400 hover:bg-red-500 hover:text-white transition shadow-sm">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>` : '<i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>'}
+                </div>
+            </div>`).join('') || `
+                <div class="text-center py-16">
+                    <div class="text-slate-300 font-bold text-sm mb-1 uppercase tracking-widest">Kosong</div>
+                    <div class="text-slate-400 text-xs font-medium">Tidak ada transaksi pada tanggal ${dateFilter}</div>
+                </div>`;
+        
+        initIcons();
+    } catch (error) {
+        listEl.innerHTML = `<div class="py-10 text-center text-red-500 font-bold">Gagal memuat data: ${error.message}</div>`;
+    }
 }
 
 // --- FUNGSI HAPUS TRANSAKSI (UPDATED) ---
 async function deleteTransaction(id) {
-    if(confirm("Hapus transaksi ini? Data omset akan otomatis dihitung ulang.")) {
+    if(confirm("Hapus transaksi ini? Data omset dan laporan akan otomatis dihitung ulang.")) {
         try {
             await getPublicCol('transactions').doc(id).delete();
             
-            // Refresh List Riwayat
-            await loadRiwayatData(); 
+            // 1. Refresh list riwayat transaksi yang sedang dilihat
+            if (document.getElementById('hist-list')) {
+                await loadRiwayatData();
+            }
             
-            // Refresh Analitik (Jika elemen dashboard ada)
+            // 2. Refresh Analitik Dashboard SPV (jika elemennya ada di layar)
             if (document.getElementById('spv-date')) {
                 await loadSPVAnalytics();
+            }
+
+            // 3. Refresh Trafik SPV (jika elemennya ada di layar)
+            if (document.getElementById('traffic-date')) {
+                await loadSPVTrafficData();
             }
             
             alert("Transaksi berhasil dihapus dan omset diperbarui.");
         } catch (error) {
             console.error("Gagal menghapus:", error);
-            alert("Gagal menghapus data.");
+            alert("Gagal menghapus data transaksi.");
         }
     }
 }
+window.deleteTransaction = deleteTransaction;
 
 // --- DASHBOARD ANALITIK SPV ---
 async function renderSPVDashboard(container) {
@@ -691,29 +1024,124 @@ async function loadSPVAnalytics() {
             loadSPVSaosData();
         }
 
-        async function loadSPVSaosData() {
-            const dateStr = document.getElementById('saos-date').value;
-            const outlet = document.getElementById('spv-outlet-filter').value;
-            const snap = await getPublicCol('saos_usage').get();
-            let docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
-            document.getElementById('display-date-saos').innerText = `Tgl: ${new Date(dateStr).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`;
-            document.getElementById('display-outlet-saos').innerText = `Outlet: ${outlet === 'ALL' ? 'Semua Outlet' : outlet}`;
-            docs = docs.filter(d => d.timestamp.toDate().toISOString().split('T')[0] === dateStr);
-            if(outlet !== 'ALL') docs = docs.filter(d => d.outlet === outlet);
-            docs.sort((a,b) => a.timestamp.seconds - b.timestamp.seconds);
-            let totalQty = 0;
-            document.getElementById('spv-saos-table').innerHTML = docs.map(d => {
-                totalQty += (d.qty || 0);
-                return `<tr><td class="px-6 py-4 text-blue-600 font-black uppercase text-[10px] tracking-tight">${d.outlet}</td><td class="px-6 py-4 text-slate-400">${d.timestamp.toDate().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</td><td class="px-6 py-4 uppercase font-bold">${d.name}</td><td class="px-6 py-4 text-right text-sm font-black text-slate-900">${d.qty}</td><td class="px-6 py-4 text-center no-print"><button onclick="deleteSaos('${d.id}')" class="text-slate-300 hover:text-red-500 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
-            }).join('') || '<tr><td colspan="5" class="text-center py-20 text-slate-300 font-bold uppercase tracking-widest">Tidak ada data</td></tr>';
-            document.getElementById('saos-total-qty').innerText = totalQty;
-            initIcons();
-        }
+async function loadSPVSaosData() {
+    const tableBody = document.getElementById('spv-saos-table');
+    const dateStr = document.getElementById('saos-date').value;
+    const outlet = document.getElementById('spv-outlet-filter').value;
+    
+    if(!tableBody) return;
 
-        async function deleteSaos(id) {
-            if(confirm("Hapus data saos?")) { await getPublicCol('saos_usage').doc(id).delete(); loadSPVSaosData(); }
-        }
+    try {
+        const snap = await getPublicCol('saos_usage').get();
+        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // Update Label Header
+        document.getElementById('display-date-saos').innerText = `Tgl: ${dateStr}`;
+        document.getElementById('display-outlet-saos').innerText = `Outlet: ${outlet === 'ALL' ? 'Semua' : outlet}`;
+
+        // Filter Berdasarkan Tanggal & Outlet
+        docs = docs.filter(d => {
+            if (!d.timestamp) return false;
+            const docDate = d.timestamp.toDate().toISOString().split('T')[0];
+            const matchDate = docDate === dateStr;
+            const matchOutlet = (outlet === 'ALL' || d.outlet === outlet);
+            return matchDate && matchOutlet;
+        });
+
+        // Urutkan jam terbaru di atas
+        docs.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
+
+        let totalQty = 0;
+        tableBody.innerHTML = docs.map(d => {
+            totalQty += d.qty;
+            const jam = d.timestamp.toDate().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+            return `
+                <tr class="hover:bg-slate-50/50">
+                    <td class="px-6 py-4">${d.outlet}</td>
+                    <td class="px-6 py-4 text-slate-400">${jam}</td>
+                    <td class="px-6 py-4 font-bold uppercase">${d.name}</td>
+                    <td class="px-6 py-4 text-right font-black text-indigo-600">${d.qty}</td>
+                    <td class="px-6 py-4 text-center no-print">
+                        <button onclick="deleteSaos('${d.id}')" class="text-red-400 hover:text-red-600 p-2">
+                            🗑️
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('') || '<tr><td colspan="5" class="text-center py-20 text-slate-300">Tidak ada data saos</td></tr>';
+
+        document.getElementById('saos-total-qty').innerText = totalQty;
+        initIcons();
+    } catch (e) {
+        console.error("Gagal load data saos SPV:", e);
+    }
+}
+window.loadSPVSaosData = loadSPVSaosData;
+
+        async function loadSPVAnalytics() {
+    const dateInput = document.getElementById('spv-date')?.value;
+    const outlet = document.getElementById('spv-outlet-filter')?.value || 'ALL';
+    if (!dateInput) return;
+
+    try {
+        // Ambil data terbaru dari Firestore
+        const snap = await getPublicCol('transactions').get();
+        let data = snap.docs.map(d => d.data());
+        
+        if(outlet !== 'ALL') data = data.filter(d => d.outlet === outlet);
+        
+        let dTot = 0, mTot = 0, yTot = 0;
+        const selectedDate = new Date(dateInput);
+        const selectedYear = selectedDate.getFullYear();
+        const selectedMonth = selectedDate.getMonth();
+
+        data.forEach(t => {
+            if (!t.timestamp) return;
+            const dt = t.timestamp.toDate();
+            const tDateStr = dt.toLocaleDateString('en-CA'); // Format YYYY-MM-DD
+            
+            // Hitung Total Hari yang dipilih
+            if(tDateStr === dateInput) dTot += t.total;
+            
+            // Hitung Total Bulan dari tanggal yang dipilih
+            if(dt.getMonth() === selectedMonth && dt.getFullYear() === selectedYear) mTot += t.total;
+            
+            // Hitung Total Tahun dari tanggal yang dipilih
+            if(dt.getFullYear() === selectedYear) yTot += t.total;
+        });
+
+        // Update UI secara instan
+        document.getElementById('total-selected').innerText = `Rp ${dTot.toLocaleString('id-ID')}`;
+        document.getElementById('total-month').innerText = `Rp ${mTot.toLocaleString('id-ID')}`;
+        document.getElementById('total-year').innerText = `Rp ${yTot.toLocaleString('id-ID')}`;
+    } catch (e) {
+        console.error("Gagal update dashboard:", e);
+    }
+}
+
+        // Pastikan fungsi ini berada di luar (scope global) agar bisa dipanggil tombol onclick
+async function deleteSaos(id) {
+    if(confirm("Hapus data stok saos ini?")) {
+        try {
+            await getPublicCol('saos_usage').doc(id).delete();
+            
+            // Refresh tabel di sisi Kasir jika sedang dibuka
+            if (document.getElementById('local-saos-history')) {
+                await loadLocalSaosHistory();
+            }
+            // Refresh tabel di sisi SPV jika sedang dibuka
+            if (document.getElementById('spv-saos-table')) {
+                await loadSPVSaosData();
+            }
+            
+            alert("Data saos berhasil dihapus.");
+        } catch (error) {
+            alert("Gagal menghapus: " + error.message);
+        }
+    }
+}
+window.deleteSaos = deleteSaos;
+// Tempelkan ke window agar aman dipanggil dari HTML string
+window.deleteSaos = deleteSaos;
         async function renderSPVTraffic(container) {
             container.innerHTML = `
                 <div class="space-y-4">
