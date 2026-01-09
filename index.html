@@ -146,6 +146,12 @@
     </div>
 
     <script>
+        // Fungsi untuk mendapatkan objek Date Jakarta (WIB)
+function getJakartaDate() {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utc + (3600000 * 7));
+}
         const firebaseConfig = {
             apiKey: "AIzaSyCfvaQyjap_G1hAknz5VXMRQ7uzw2XKHrQ",
             authDomain: "mesin-kasir-1fa7e.firebaseapp.com",
@@ -481,30 +487,27 @@ async function deleteToken(id) {
     payBtn.disabled = true;
     payBtn.innerText = "MEMPROSES...";
 
+    const nowJakarta = getJakartaDate(); 
+    
     const data = {
         items: currentCart.map(it => ({...it})),
-        total, cash, change: cash - total,
+        total, 
+        cash, 
+        change: cash - total,
         method: selectedPayment,
-        timestamp: firebase.firestore.Timestamp.now(),
+        // Gunakan waktu Jakarta untuk disimpan ke Firestore
+        timestamp: firebase.firestore.Timestamp.fromDate(nowJakarta),
         staff: currentUser.name,
         outlet: currentUser.outlet,
-        hour: new Date().getHours()
+        hour: nowJakarta.getHours() 
     };
     
     try {
         await getPublicCol('transactions').add(data);
         showReceipt(data);
-        
-        // Reset state aplikasi
         currentCart = [];
         document.getElementById('cash-input').value = '';
         updateCartUI();
-
-        // PENTING: Jeda 800ms agar browser sempat merender modal sebelum dialog print muncul
-        setTimeout(() => {
-            window.print();
-        }, 800);
-
     } catch (error) {
         alert("Gagal memproses: " + error.message);
     } finally {
@@ -514,20 +517,23 @@ async function deleteToken(id) {
 }
 
         function showReceipt(data) {
-    const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
-    const formatDate = date.toLocaleDateString('id-ID') + " " + date.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
-    
-    const width = 32; 
+    const formatDate = new Intl.DateTimeFormat('id-ID', { 
+        timeZone: 'Asia/Jakarta', 
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    }).format(data.timestamp.toDate());
+    const width = 32; // Standar lebar kertas thermal
     const line = "=".repeat(width);
     const dash = "-".repeat(width);
 
-    // Helper agar teks tepat di tengah
+    // Fungsi pembantu untuk teks rata tengah
     const center = (txt) => {
-        const space = Math.max(0, Math.floor((width - txt.length) / 2));
-        return " ".repeat(space) + txt;
+        const textStr = String(txt).toUpperCase();
+        const space = Math.max(0, Math.floor((width - textStr.length) / 2));
+        return " ".repeat(space) + textStr;
     };
 
-    // Helper agar teks rata kiri-kanan (Justify)
+    // Fungsi pembantu untuk baris Item (Nama di kiri, Harga di kanan)
     const row = (l, r) => {
         const leftPart = String(l);
         const rightPart = String(r);
@@ -535,18 +541,21 @@ async function deleteToken(id) {
         return leftPart + " ".repeat(Math.max(1, spaceNeeded)) + rightPart;
     };
 
+    // MENYUSUN STRUK
     let text = `\n${center("FAST PRO KASIR")}\n`;
-    text += `${center(data.outlet.toUpperCase())}\n`;
+    text += `${center(data.outlet || "OUTLET")}\n`;
+    text += `${center(formatDate)}\n`;
     text += `${line}\n`;
-    text += `Waktu : ${formatDate}\n`;
-    text += `Kasir : ${data.staff}\n`;
-    text += `Metode: ${data.method}\n`;
+    text += `${center("KASIR: " + (data.staff || "STAFF"))}\n`;
+    text += `${center("METODE: " + (data.method || "CASH"))}\n`;
     text += `${dash}\n`;
 
+    // Daftar Barang
     data.items.forEach(it => {
-        // Nama barang dipotong jika lebih dari 32 karakter agar tidak merusak baris
-        const name = it.name.length > width ? it.name.substring(0, width-3) + "..." : it.name;
-        text += `${name.toUpperCase()}\n`;
+        // Nama barang jika terlalu panjang akan dipotong
+        const name = it.name.toUpperCase();
+        text += `${name.substring(0, width)}\n`;
+        if(name.length > width) text += `${name.substring(width, width*2)}\n`;
         
         const detail = `  ${it.qty} x ${it.price.toLocaleString()}`;
         const subtotal = (it.price * it.qty).toLocaleString();
@@ -558,24 +567,15 @@ async function deleteToken(id) {
     text += row("BAYAR", `Rp ${data.cash.toLocaleString()}`) + "\n";
     text += row("KEMBALI", `Rp ${data.change.toLocaleString()}`) + "\n";
     text += `${line}\n`;
-    text += `\n${center("Barang tidak dapat ditukar")}\n`;
-    text += `${center("*** TERIMA KASIH ***")}\n\n\n\n`;
+    text += `\n${center("Barang yang sudah dibeli")}\n`;
+    text += `${center("tidak dapat ditukar/kembali")}\n`;
+    text += `\n${center("*** TERIMA KASIH ***")}\n\n\n`;
 
-    // Tampilkan di layar
+    // Tampilkan ke elemen modal
     const content = document.getElementById('receipt-content');
-    content.innerHTML = `<pre class="font-mono text-[10px] leading-tight">${text}</pre>`;
+    content.innerHTML = `<pre class="font-mono text-[12px] leading-tight inline-block text-left whitespace-pre">${text}</pre>`;
     
-    // Aktifkan fitur Copy Text agar format struk tetap rapi saat di-share
-    const copyBtn = document.getElementById('copy-text-btn');
-    if (copyBtn) {
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(text);
-            const originalText = copyBtn.innerHTML;
-            copyBtn.innerHTML = "✅ Berhasil Disalin";
-            setTimeout(() => { copyBtn.innerHTML = originalText; }, 2000);
-        };
-    }
-
+    // Tampilkan Modal
     document.getElementById('receipt-modal').classList.replace('hidden', 'flex');
 }
 
@@ -628,11 +628,9 @@ function closeReceipt() {
         }
 
         function renderSaos(container) {
-    // Ambil waktu lokal sekarang untuk default value (format HH:mm)
-    const now = new Date();
-    const currentTime = now.getHours().toString().padStart(2, '0') + ":" + 
-                        now.getMinutes().toString().padStart(2, '0');
-
+    const nowJKT = getJakartaDate();
+    const currentTime = nowJKT.getHours().toString().padStart(2, '0') + ":" + 
+                        nowJKT.getMinutes().toString().padStart(2, '0');
     container.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
             <div class="bg-white p-6 rounded-[2rem] border shadow-lg h-fit">
@@ -736,38 +734,27 @@ async function submitSaos() {
     const timeInput = document.getElementById('saos-time');
     const name = document.getElementById('saos-name').value;
     const qty = parseInt(qtyInput.value);
-    const selectedTime = timeInput.value;
-
-    if(!qty || qty < 1) {
-        alert("Masukkan jumlah yang valid");
-        return;
-    }
+    const selectedTime = timeInput.value; // Format HH:mm dari input
 
     try {
         const [hours, minutes] = selectedTime.split(':');
-        const finalTimestamp = new Date();
+        
+        // Buat objek waktu Jakarta saat ini
+        const finalTimestamp = getJakartaDate(); 
+        // Set jam sesuai input user, tapi tanggal tetap tanggal Jakarta hari ini
         finalTimestamp.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-        // Menyimpan data ke Firestore
         await getPublicCol('saos_usage').add({ 
             name, 
             qty, 
             staff: currentUser.name, 
             outlet: currentUser.outlet, 
+            // Simpan sebagai Firestore Timestamp
             timestamp: firebase.firestore.Timestamp.fromDate(finalTimestamp) 
         });
         
-        qtyInput.value = 1; 
-        
-        // Memberikan jeda 500ms agar data benar-benar sudah terindeks di server
-        setTimeout(() => {
-            loadLocalSaosHistory();
-            alert("Data saos berhasil disimpan!");
-        }, 500);
-
-    } catch (error) {
-        alert("Gagal menyimpan data: " + error.message);
-    }
+        // Refresh & Alert...
+    } catch (error) { alert(error.message); }
 }
       // --- GLOBAL FILTERS & UTILITIES ---
 function getOutletFilterHTML(onchangeFn) {
@@ -1026,24 +1013,22 @@ async function loadSPVAnalytics() {
 
 async function loadSPVSaosData() {
     const tableBody = document.getElementById('spv-saos-table');
-    const dateStr = document.getElementById('saos-date').value;
+    const dateStr = document.getElementById('saos-date').value; // Format: YYYY-MM-DD
     const outlet = document.getElementById('spv-outlet-filter').value;
     
-    if(!tableBody) return;
-
     try {
         const snap = await getPublicCol('saos_usage').get();
         let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // Update Label Header
-        document.getElementById('display-date-saos').innerText = `Tgl: ${dateStr}`;
-        document.getElementById('display-outlet-saos').innerText = `Outlet: ${outlet === 'ALL' ? 'Semua' : outlet}`;
-
-        // Filter Berdasarkan Tanggal & Outlet
         docs = docs.filter(d => {
             if (!d.timestamp) return false;
-            const docDate = d.timestamp.toDate().toISOString().split('T')[0];
-            const matchDate = docDate === dateStr;
+            
+            // PERBAIKAN: Paksa konversi ke tanggal Jakarta untuk dibandingkan dengan input date
+            const docDateJakarta = d.timestamp.toDate().toLocaleDateString('en-CA', {
+                timeZone: 'Asia/Jakarta'
+            });
+            
+            const matchDate = docDateJakarta === dateStr;
             const matchOutlet = (outlet === 'ALL' || d.outlet === outlet);
             return matchDate && matchOutlet;
         });
