@@ -730,18 +730,23 @@ async function loadLocalSaosHistory() {
 }
 
 async function submitSaos() {
+    const btn = document.querySelector('button[onclick="submitSaos()"]');
     const qtyInput = document.getElementById('saos-qty');
     const timeInput = document.getElementById('saos-time');
     const name = document.getElementById('saos-name').value;
     const qty = parseInt(qtyInput.value);
-    const selectedTime = timeInput.value; // Format HH:mm dari input
+    const selectedTime = timeInput.value;
+
+    if (!qty || qty < 1) return alert("Jumlah harus lebih dari 0");
+
+    // Efek loading pada tombol
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "MENGIRIM...";
 
     try {
         const [hours, minutes] = selectedTime.split(':');
-        
-        // Buat objek waktu Jakarta saat ini
         const finalTimestamp = getJakartaDate(); 
-        // Set jam sesuai input user, tapi tanggal tetap tanggal Jakarta hari ini
         finalTimestamp.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
         await getPublicCol('saos_usage').add({ 
@@ -749,12 +754,27 @@ async function submitSaos() {
             qty, 
             staff: currentUser.name, 
             outlet: currentUser.outlet, 
-            // Simpan sebagai Firestore Timestamp
             timestamp: firebase.firestore.Timestamp.fromDate(finalTimestamp) 
         });
         
-        // Refresh & Alert...
-    } catch (error) { alert(error.message); }
+        // --- BAGIAN REFRESH & FEEDBACK ---
+        
+        // 1. Refresh tabel riwayat secara otomatis
+        await loadLocalSaosHistory();
+        
+        // 2. Notifikasi Sukses
+        alert(`✅ Sukses! Data saos ${name} (${qty} porsi) berhasil disimpan.`);
+        
+        // 3. Reset Input (Jumlah kembali ke 1)
+        qtyInput.value = "1";
+        
+    } catch (error) { 
+        alert("Gagal menyimpan data: " + error.message); 
+    } finally {
+        // Kembalikan tombol ke keadaan semula
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
 }
       // --- GLOBAL FILTERS & UTILITIES ---
 function getOutletFilterHTML(onchangeFn) {
